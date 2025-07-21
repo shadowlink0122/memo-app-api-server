@@ -59,6 +59,16 @@ func NewLogUploader(config *S3Config, logger *logrus.Logger) (*LogUploader, erro
 
 // UploadLogFile ログファイルをS3にアップロード
 func (u *LogUploader) UploadLogFile(filePath string) error {
+	// ファイルパスの基本的な検証
+	if filePath == "" {
+		return fmt.Errorf("ファイルパスが空です")
+	}
+
+	// 相対パスや危険なパスの検証
+	if strings.Contains(filePath, "..") {
+		return fmt.Errorf("無効なファイルパス: %s", filePath)
+	}
+
 	// ファイルを開く
 	file, err := os.Open(filePath)
 	if err != nil {

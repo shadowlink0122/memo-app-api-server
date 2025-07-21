@@ -28,8 +28,8 @@ func InitLogger() error {
 		TimestampFormat: time.RFC3339,
 	})
 
-	// ログディレクトリを作成
-	if err := os.MkdirAll(logDirectory, 0755); err != nil {
+	// ログディレクトリを作成（より安全なパーミッション）
+	if err := os.MkdirAll(logDirectory, 0750); err != nil {
 		return fmt.Errorf("ログディレクトリの作成に失敗: %v", err)
 	}
 
@@ -50,15 +50,17 @@ func InitLogger() error {
 func rotateLogFile() error {
 	// 既存のファイルを閉じる
 	if currentFile != nil {
-		currentFile.Close()
+		if err := currentFile.Close(); err != nil {
+			Log.WithError(err).Warn("既存ログファイルのクローズに失敗")
+		}
 	}
 
 	// 新しいファイル名を生成（タイムスタンプ付き）
 	filename := fmt.Sprintf("app_%s.log", time.Now().Format("2006-01-02_15-04-05"))
 	filepath := filepath.Join(logDirectory, filename)
 
-	// 新しいファイルを作成
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// 新しいファイルを作成（より安全なパーミッション）
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return err
 	}
@@ -80,7 +82,9 @@ func GetCurrentLogFile() string {
 func CloseLogger() {
 	if currentFile != nil {
 		Log.Info("ログファイルを閉じます")
-		currentFile.Close()
+		if err := currentFile.Close(); err != nil {
+			Log.WithError(err).Warn("ログファイルのクローズに失敗")
+		}
 	}
 }
 

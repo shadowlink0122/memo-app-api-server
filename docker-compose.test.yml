@@ -42,7 +42,9 @@ services:
       - POSTGRES_USER=memo_user
       - POSTGRES_PASSWORD=memo_password
     volumes:
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./migrations/000_create_test_db.sql:/docker-entrypoint-initdb.d/000_create_test_db.sql:ro
+      - ./migrations/001_initial_schema.up.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+      - ./migrations/002_sample_data.up.sql:/docker-entrypoint-initdb.d/002_sample_data.sql:ro
     networks:
       - memo-test-network
     healthcheck:
