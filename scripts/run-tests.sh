@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# テスト実行スクリプト
-# CI/CD環境やローカルでのテスト実行に使用
+# Docker専用テスト実行スクリプト
+# このアプリケーションはDocker環境でのみ動作します
 
 set -e  # エラー時に終了
 
-echo "======================================"
-echo "memo-app-api-server テストスイート"
-echo "======================================"
+echo "=========================================="
+echo "memo-app-api-server Docker専用テストスイート"
+echo "=========================================="
 
 # カラー出力用の関数
 GREEN='\033[0;32m'
@@ -37,34 +37,67 @@ VERBOSE=${VERBOSE:-false}
 COVERAGE=${COVERAGE:-false}
 TIMEOUT=${TIMEOUT:-5m}
 
-# Go関連の確認
-check_go() {
-    info "Go環境を確認中..."
+# Docker関連の確認
+check_docker() {
+    info "Docker環境を確認中..."
     
-    if ! command -v go &> /dev/null; then
-        error "Goがインストールされていません"
+    if ! command -v docker &> /dev/null; then
+        error "Dockerがインストールされていません"
         exit 1
     fi
     
-    GO_VERSION=$(go version | awk '{print $3}')
-    success "Go環境: $GO_VERSION"
+    if ! docker compose version &> /dev/null; then
+        error "Docker Composeがインストールされていません"
+        exit 1
+    fi
+    
+    DOCKER_VERSION=$(docker --version | awk '{print $3}' | sed 's/,//')
+    COMPOSE_VERSION=$(docker compose version --short)
+    success "Docker環境: $DOCKER_VERSION, Compose: $COMPOSE_VERSION"
+}
+# Docker環境の確認とテスト実行
+run_docker_tests() {
+    info "Docker環境でのテスト実行を開始..."
+    
+    # Docker Composeが起動しているかチェック
+    if ! docker compose ps | grep -q "Up"; then
+        warning "Docker Composeサービスが起動していません"
+        info "サービスを起動中..."
+        docker compose up -d
+        sleep 10  # サービス起動待機
+    fi
+    
+    case "$TEST_MODE" in
+        "unit")
+            run_unit_tests_docker
+            ;;
+        "integration")
+            run_integration_tests_docker
+            ;;
+        "database")
+            run_database_tests_docker
+            ;;
+        "e2e")
+            run_e2e_tests_docker
+            ;;
+        "all")
+            run_unit_tests_docker
+            run_integration_tests_docker
+            run_database_tests_docker
+            run_e2e_tests_docker
+            ;;
+        *)
+            error "無効なテストモード: $TEST_MODE"
+            echo "有効な値: unit, integration, database, e2e, all"
+            exit 1
+            ;;
+    esac
 }
 
-# 依存関係の確認
-check_dependencies() {
-    info "依存関係を確認中..."
+# ユニットテスト実行（Docker環境）
+run_unit_tests_docker() {
+    info "Docker環境でユニットテストを実行中..."
     
-    go mod tidy
-    go mod verify
-    
-    success "依存関係の確認完了"
-}
-
-# ユニットテスト実行
-run_unit_tests() {
-    info "ユニットテストを実行中..."
-    
-    local test_dirs=("config" "middleware" "logger" "storage")
     local cmd_args=()
     
     if [[ "$VERBOSE" == "true" ]]; then
@@ -77,22 +110,17 @@ run_unit_tests() {
     
     cmd_args+=("-timeout=$TIMEOUT")
     
-    for dir in "${test_dirs[@]}"; do
-        info "テスト実行: test/$dir"
-        if go test "./test/$dir" "${cmd_args[@]}"; then
-            success "ユニットテスト成功: $dir"
-        else
-            error "ユニットテスト失敗: $dir"
-            return 1
-        fi
-    done
-    
-    success "全ユニットテスト完了"
+    if docker compose exec app go test ./test/config ./test/middleware ./test/logger ./test/storage "${cmd_args[@]}"; then
+        success "ユニットテスト成功"
+    else
+        error "ユニットテスト失敗"
+        return 1
+    fi
 }
 
-# 統合テスト実行
-run_integration_tests() {
-    info "統合テストを実行中..."
+# 統合テスト実行（Docker環境）
+run_integration_tests_docker() {
+    info "Docker環境で統合テストを実行中..."
     
     local cmd_args=()
     
@@ -106,7 +134,7 @@ run_integration_tests() {
     
     cmd_args+=("-timeout=$TIMEOUT")
     
-    if go test "./test/integration" "${cmd_args[@]}"; then
+    if docker compose exec app go test ./test/integration "${cmd_args[@]}"; then
         success "統合テスト完了"
     else
         error "統合テスト失敗"
@@ -114,14 +142,16 @@ run_integration_tests() {
     fi
 }
 
-# データベーステスト実行
-run_database_tests() {
-    info "データベーステストを実行中..."
+# データベーステスト実行（Docker環境）
+run_database_tests_docker() {
+    info "Docker環境でデータベーステストを実行中..."
     
-    # データベース接続の確認
-    if [[ -z "$TEST_DATABASE_URL" ]]; then
-        warning "TEST_DATABASE_URLが設定されていません。データベーステストをスキップします。"
-        return 0
+    # データベースサービスが起動しているかチェック
+    if ! docker compose ps db | grep -q "Up"; then
+        warning "データベースサービスが起動していません"
+        info "データベースサービスを起動中..."
+        docker compose up -d db
+        sleep 15  # データベース起動待機
     fi
     
     local cmd_args=()
@@ -132,7 +162,7 @@ run_database_tests() {
     
     cmd_args+=("-timeout=$TIMEOUT")
     
-    if TEST_DATABASE_URL="$TEST_DATABASE_URL" go test "./test/database" "${cmd_args[@]}"; then
+    if docker compose exec app go test ./test/database "${cmd_args[@]}"; then
         success "データベーステスト完了"
     else
         error "データベーステスト失敗"
@@ -140,20 +170,21 @@ run_database_tests() {
     fi
 }
 
-# E2Eテスト実行
-run_e2e_tests() {
-    info "E2Eテストを実行中..."
+# E2Eテスト実行（Docker環境）
+run_e2e_tests_docker() {
+    info "Docker環境でE2Eテストを実行中..."
     
-    # Docker環境の確認
-    if ! command -v docker &> /dev/null; then
-        warning "Dockerがインストールされていません。E2Eテストをスキップします。"
-        return 0
-    fi
-    
-    if ! command -v docker-compose &> /dev/null; then
-        warning "Docker Composeがインストールされていません。E2Eテストをスキップします。"
-        return 0
-    fi
+    # 全サービスが起動しているかチェック
+    services=("app" "db" "minio")
+    for service in "${services[@]}"; do
+        if ! docker compose ps "$service" | grep -q "Up"; then
+            warning "$service サービスが起動していません"
+            info "全サービスを起動中..."
+            docker compose up -d
+            sleep 30  # 全サービス起動待機
+            break
+        fi
+    done
     
     local cmd_args=()
     
@@ -163,7 +194,7 @@ run_e2e_tests() {
     
     cmd_args+=("-timeout=10m")  # E2Eテストは時間がかかる
     
-    if go test "./test/e2e" "${cmd_args[@]}"; then
+    if docker compose exec app go test ./test/e2e "${cmd_args[@]}"; then
         success "E2Eテスト完了"
     else
         error "E2Eテスト失敗"
@@ -171,100 +202,41 @@ run_e2e_tests() {
     fi
 }
 
-# API テスト実行
-run_api_tests() {
-    info "APIテストを実行中..."
-    
-    local cmd_args=()
-    
-    if [[ "$VERBOSE" == "true" ]]; then
-        cmd_args+=("-v")
-    fi
-    
-    if [[ "$COVERAGE" == "true" ]]; then
-        cmd_args+=("-cover" "-coverprofile=coverage-api.out")
-    fi
-    
-    cmd_args+=("-timeout=$TIMEOUT")
-    
-    if go test "./test" "${cmd_args[@]}"; then
-        success "APIテスト完了"
-    else
-        error "APIテスト失敗"
-        return 1
-    fi
-}
-
-# カバレッジレポート生成
-generate_coverage_report() {
+# カバレッジレポート生成（Docker環境）
+generate_coverage_report_docker() {
     if [[ "$COVERAGE" != "true" ]]; then
         return 0
     fi
     
-    info "カバレッジレポートを生成中..."
+    info "Docker環境でカバレッジレポートを生成中..."
     
-    # カバレッジファイルを結合
-    echo "mode: set" > coverage-total.out
-    for coverage_file in coverage-*.out; do
-        if [[ -f "$coverage_file" ]]; then
-            tail -n +2 "$coverage_file" >> coverage-total.out
-        fi
-    done
-    
-    # HTMLレポートを生成
-    if go tool cover -html=coverage-total.out -o coverage.html; then
+    if docker compose exec app bash -c "
+        echo 'mode: set' > coverage-total.out
+        for coverage_file in coverage-*.out; do
+            if [[ -f \"\$coverage_file\" ]]; then
+                tail -n +2 \"\$coverage_file\" >> coverage-total.out
+            fi
+        done
+        go tool cover -html=coverage-total.out -o coverage.html
+        go tool cover -func=coverage-total.out
+    "; then
         success "HTMLカバレッジレポート生成: coverage.html"
     fi
-    
-    # 関数別カバレッジを表示
-    if [[ "$VERBOSE" == "true" ]]; then
-        info "関数別カバレッジ:"
-        go tool cover -func=coverage-total.out
-    fi
-    
-    # 総合カバレッジ率を計算・表示
-    local total_coverage=$(go tool cover -func=coverage-total.out | tail -1 | awk '{print $3}')
-    success "総合カバレッジ率: $total_coverage"
 }
 
 # メイン実行部分
 main() {
+    echo ""
+    info "⚠️  重要: このアプリケーションはDocker専用です"
     info "テストモード: $TEST_MODE"
+    echo ""
     
-    check_go
-    check_dependencies
+    check_docker
+    run_docker_tests
     
-    case "$TEST_MODE" in
-        "unit")
-            run_unit_tests
-            ;;
-        "integration")
-            run_integration_tests
-            ;;
-        "database")
-            run_database_tests
-            ;;
-        "e2e")
-            run_e2e_tests
-            ;;
-        "api")
-            run_api_tests
-            ;;
-        "all")
-            run_unit_tests
-            run_api_tests
-            run_integration_tests
-            run_database_tests
-            run_e2e_tests
-            ;;
-        *)
-            error "無効なテストモード: $TEST_MODE"
-            echo "利用可能なモード: unit, integration, database, e2e, api, all"
-            exit 1
-            ;;
-    esac
-    
-    generate_coverage_report
+    if [[ "$COVERAGE" == "true" ]]; then
+        generate_coverage_report_docker
+    fi
     
     success "全テスト完了!"
 }
@@ -273,19 +245,23 @@ main() {
 show_usage() {
     echo "使用方法: $0 [TEST_MODE]"
     echo ""
+    echo "⚠️  重要: このスクリプトはDocker環境でのみ動作します"
+    echo ""
     echo "TEST_MODE:"
     echo "  unit        - ユニットテストのみ"
     echo "  integration - 統合テストのみ"
     echo "  database    - データベーステストのみ"
     echo "  e2e         - E2Eテストのみ"
-    echo "  api         - APIテストのみ"
     echo "  all         - 全テスト（デフォルト）"
     echo ""
     echo "環境変数:"
     echo "  VERBOSE=true           - 詳細出力"
     echo "  COVERAGE=true          - カバレッジ測定"
     echo "  TIMEOUT=5m             - テストタイムアウト"
-    echo "  TEST_DATABASE_URL=...  - データベーステスト用接続文字列"
+    echo ""
+    echo "前提条件:"
+    echo "  - Docker & Docker Composeがインストール済み"
+    echo "  - docker-compose.ymlが存在すること"
     echo ""
     echo "例:"
     echo "  $0 unit                           # ユニットテストのみ"

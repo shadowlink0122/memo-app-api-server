@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,7 +68,7 @@ func setupTestRouter() *gin.Engine {
 		})
 	}
 
-	// プライベートルート
+	// プライベートルート（実際のサーバーと同じ構成）
 	private := r.Group("/api")
 	private.Use(middleware.AuthMiddleware())
 	{
@@ -75,6 +76,21 @@ func setupTestRouter() *gin.Engine {
 			c.JSON(http.StatusOK, gin.H{
 				"message": "これは認証が必要なエンドポイントです",
 				"user":    "認証されたユーザー",
+			})
+		})
+
+		// メモAPIエンドポイント（テスト用のスタブ）
+		private.GET("/memos", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"memos": []gin.H{},
+				"total": 0,
+			})
+		})
+
+		private.POST("/memos", func(c *gin.Context) {
+			c.JSON(http.StatusCreated, gin.H{
+				"id":      1,
+				"message": "メモが作成されました",
 			})
 		})
 	}
@@ -121,9 +137,16 @@ func TestFullRequestFlow(t *testing.T) {
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// 3. 認証が必要なエンドポイント
+	// 3. 認証が必要なエンドポイント（認証なし）
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/api/protected", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	// 4. 認証が必要なエンドポイント（有効な認証あり）
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token-123")
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -177,19 +200,53 @@ func TestHelloEndpoint(t *testing.T) {
 func TestProtectedEndpoint(t *testing.T) {
 	router := setupTestRouter()
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/protected", nil)
-	router.ServeHTTP(w, req)
+	// 認証なしでアクセス - 401 Unauthorized が期待される
+	t.Run("Without Authentication", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/protected", nil)
+		router.ServeHTTP(w, req)
 
-	// 認証ミドルウェアは現在空実装なので、200が返される
-	assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
 
-	assert.Equal(t, "これは認証が必要なエンドポイントです", response["message"])
-	assert.Equal(t, "認証されたユーザー", response["user"])
+		assert.Equal(t, "Authorization header required", response["error"])
+	})
+
+	// 無効なトークンでアクセス - 401 Unauthorized が期待される
+	t.Run("With Invalid Token", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/protected", nil)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Invalid token", response["error"])
+	})
+
+	// 有効なトークンでアクセス - 200 OK が期待される
+	t.Run("With Valid Token", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/protected", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "これは認証が必要なエンドポイントです", response["message"])
+		assert.Equal(t, "認証されたユーザー", response["user"])
+	})
 }
 
 // === CORS テスト ===
@@ -228,4 +285,95 @@ func TestNotFoundEndpoint(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// === 認証テスト ===
+
+func TestAuthenticationRequired(t *testing.T) {
+	router := setupTestRouter()
+
+	// 認証が必要なエンドポイントの一覧
+	endpoints := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/api/protected"},
+		{"GET", "/api/memos"},
+		{"POST", "/api/memos"},
+	}
+
+	for _, endpoint := range endpoints {
+		t.Run(fmt.Sprintf("%s %s without auth", endpoint.method, endpoint.path), func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(endpoint.method, endpoint.path, nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+		})
+	}
+}
+
+func TestInvalidAuthorizationFormat(t *testing.T) {
+	router := setupTestRouter()
+
+	// 無効なAuthorization形式のテスト
+	testCases := []struct {
+		name   string
+		header string
+	}{
+		{"No Bearer prefix", "invalid-token"},
+		{"Empty Bearer token", "Bearer "},
+		{"Invalid prefix", "Basic dGVzdA=="},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/api/protected", nil)
+			req.Header.Set("Authorization", tc.header)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+		})
+	}
+}
+
+// === メモAPIテスト ===
+
+func TestMemoEndpointsWithValidAuth(t *testing.T) {
+	router := setupTestRouter()
+
+	// GET /api/memos
+	t.Run("List Memos with Valid Token", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/memos", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Contains(t, response, "memos")
+		assert.Contains(t, response, "total")
+	})
+
+	// POST /api/memos
+	t.Run("Create Memo with Valid Token", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/memos", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Contains(t, response, "id")
+		assert.Contains(t, response, "message")
+	})
 }

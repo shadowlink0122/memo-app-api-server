@@ -1,39 +1,61 @@
-# マルチステージビルドを使用して軽量なイメージを作成
-FROM golang:1.24.5-alpine AS builder
+# ローカルビルド対応のDockerfile
+# 事前にローカルでビルドされたバイナリを使用して実行環境を構築
+
+# テスト/開発用ステージ（Goツールチェーン含む）
+FROM golang:1.24.5-alpine AS test
+
+# 必要なツールをインストール
+RUN apk --no-cache add git ca-certificates tzdata wget curl make bash
 
 # 作業ディレクトリを設定
 WORKDIR /app
 
-# 依存関係ファイルをコピー
-COPY go.mod go.sum ./
+# プロジェクトファイルをすべてコピー
+COPY . .
 
 # 依存関係をダウンロード
 RUN go mod download
 
-# ソースコードをコピー
-COPY src/ ./src/
+# テスト環境であることを明示
+ENV DOCKER_CONTAINER=true
+ENV GIN_MODE=test
 
-# バイナリをビルド（静的リンク、サイズ最適化）
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o main src/main.go
+# ログディレクトリを作成
+RUN mkdir -p /app/logs
 
-# 実行用の軽量イメージ
-FROM alpine:3.19
+# ポート8080を公開
+EXPOSE 8080
+
+# デフォルトコマンド（テスト用に無限ループ）
+CMD ["tail", "-f", "/dev/null"]
+
+# 本番実行環境（事前ビルドされたバイナリを使用）
+FROM alpine:3.19 AS production
 
 # セキュリティ更新とca-certificatesをインストール
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata wget
 
 # 作業ディレクトリを設定
-WORKDIR /root/
+WORKDIR /app
 
-# ビルド済みバイナリをコピー
-COPY --from=builder /app/main .
+# ログディレクトリを作成
+RUN mkdir -p /app/logs
+
+# ローカルでビルドされたバイナリをコピー
+COPY bin/memo-app ./memo-app
+
+# バイナリが実行可能であることを確認
+RUN chmod +x ./memo-app
+
+# Docker環境であることを明示
+ENV DOCKER_CONTAINER=true
 
 # ポート8080を公開
 EXPOSE 8080
 
 # ヘルスチェック設定
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # アプリケーションを実行
-CMD ["./main"]
+CMD ["./memo-app"]

@@ -8,9 +8,10 @@ import (
 
 // Config アプリケーション設定
 type Config struct {
-	Server ServerConfig
-	Log    LogConfig
-	S3     S3Config
+	Server   ServerConfig
+	Log      LogConfig
+	S3       S3Config
+	Database DatabaseConfig
 }
 
 // ServerConfig サーバー設定
@@ -37,6 +38,16 @@ type S3Config struct {
 	UseSSL          bool
 }
 
+// DatabaseConfig データベース設定
+type DatabaseConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
+}
+
 // LoadConfig 環境変数から設定を読み込み
 func LoadConfig() *Config {
 	return &Config{
@@ -58,6 +69,14 @@ func LoadConfig() *Config {
 			Bucket:          getEnv("S3_BUCKET", "memo-app-logs"),
 			UseSSL:          getBoolEnv("S3_USE_SSL", false),
 		},
+		Database: DatabaseConfig{
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getIntEnv("DB_PORT", 5432),
+			User:     getEnv("DB_USER", "postgres"),
+			Password: getEnv("DB_PASSWORD", "password"),
+			DBName:   getEnv("DB_NAME", "memo_app"),
+			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		},
 	}
 }
 
@@ -73,6 +92,16 @@ func getEnv(key, defaultValue string) string {
 func getBoolEnv(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getIntEnv 環境変数をintで取得
+func getIntEnv(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
 			return parsed
 		}
 	}

@@ -1,0 +1,84 @@
+services:
+  # テスト専用Goアプリケーションコンテナ
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test # マルチステージビルドのテストステージ
+    container_name: memo-app-test
+    environment:
+      - GIN_MODE=test
+      - DB_HOST=db-test
+      - DB_PORT=5432
+      - DB_USER=memo_user
+      - DB_PASSWORD=memo_password
+      - DB_NAME=memo_db_test
+      - DB_SSLMODE=disable
+      - S3_ENDPOINT=http://minio-test:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_REGION=us-east-1
+      - S3_BUCKET=memo-app-logs-test
+      - S3_USE_SSL=false
+      - LOG_UPLOAD_ENABLED=false
+      - DOCKER_CONTAINER=true # Docker環境であることを明示
+    depends_on:
+      db-test:
+        condition: service_healthy
+      minio-test:
+        condition: service_healthy
+    volumes:
+      - test_logs:/app/logs
+    networks:
+      - memo-test-network
+    command: [ "go", "test", "./test/...", "-v" ]
+
+  # テスト用PostgreSQLデータベースコンテナ
+  db-test:
+    image: postgres:15-alpine
+    container_name: memo-db-test
+    environment:
+      - POSTGRES_DB=memo_db_test
+      - POSTGRES_USER=memo_user
+      - POSTGRES_PASSWORD=memo_password
+    volumes:
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - memo-test-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U memo_user -d memo_db_test" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # テスト用MinIO（S3互換ストレージ）
+  minio-test:
+    image: minio/minio:latest
+    container_name: memo-minio-test
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_test_data:/data
+    networks:
+      - memo-test-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/ready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+# テスト用ボリューム
+volumes:
+  minio_test_data:
+    driver: local
+  test_logs:
+    driver: local
+
+# テスト用ネットワーク
+networks:
+  memo-test-network:
+    driver: bridge

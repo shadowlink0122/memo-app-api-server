@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"log"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,30 +46,58 @@ func TestE2E(t *testing.T) {
 
 // Docker Composeでの環境セットアップ
 func (suite *E2ETestSuite) TestSetup(t *testing.T) {
-	// 現在のディレクトリを変更
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	// Docker環境内でテストを実行している場合のチェック
+	inDocker := os.Getenv("DOCKER_CONTAINER") == "true"
 
-	err = os.Chdir(suite.testDir)
-	require.NoError(t, err)
+	if !inDocker {
+		// ローカル環境での実行：Docker Composeを起動
+		originalDir, err := os.Getwd()
+		require.NoError(t, err)
+		defer os.Chdir(originalDir)
 
-	// Docker Composeでサービスを起動
-	cmd := exec.Command("docker-compose", "-f", "docker-compose.yml", "up", "-d", "--build")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+		err = os.Chdir(suite.testDir)
+		require.NoError(t, err)
 
-	err = cmd.Run()
-	require.NoError(t, err, "Docker Composeの起動に失敗")
+		// 既存のDocker Composeサービスの状態をチェック
+		cmd := exec.Command("docker", "compose", "ps", "--services", "--filter", "status=running")
+		output, err := cmd.Output()
 
-	// サービスが準備完了するまで待機
-	time.Sleep(30 * time.Second)
+		if err != nil || len(output) == 0 {
+			// サービスが動いていない場合は起動
+			t.Log("Docker Composeサービスを起動中...")
+			cmd := exec.Command("docker", "compose", "-f", "docker-compose.yml", "up", "-d")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			err = cmd.Run()
+			require.NoError(t, err, "Docker Composeの起動に失敗")
+
+			// サービスが準備完了するまで待機
+			time.Sleep(30 * time.Second)
+		} else {
+			t.Log("既存のDocker Composeサービスを使用")
+			// 短い待機
+			time.Sleep(5 * time.Second)
+		}
+	} else {
+		t.Log("Docker環境内でテストを実行：既存のサービスを使用")
+		// Docker環境内では短い待機のみ
+		time.Sleep(5 * time.Second)
+	}
 
 	// データベース接続を確立
-	dsn := "postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable"
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		if inDocker {
+			dsn = "postgres://memo_user:memo_password@db:5432/memo_db_test?sslmode=disable"
+		} else {
+			dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
+		}
+	}
 
 	// 接続を何度か試行
 	var db *sql.DB
+	var err error
 	for i := 0; i < 10; i++ {
 		db, err = sql.Open("postgres", dsn)
 		if err == nil {
@@ -89,7 +119,7 @@ func (suite *E2ETestSuite) TestDatabaseIntegration(t *testing.T) {
 	require.NotNil(t, suite.db, "データベース接続が確立されていません")
 
 	// テーブルの存在確認
-	tables := []string{"users", "memos"}
+	tables := []string{"memos"}
 	for _, table := range tables {
 		var exists bool
 		err := suite.db.QueryRow(`
@@ -102,51 +132,43 @@ func (suite *E2ETestSuite) TestDatabaseIntegration(t *testing.T) {
 		assert.True(t, exists, "テーブルが存在しません: %s", table)
 	}
 
-	// サンプルデータの確認
-	var userCount int
-	err := suite.db.QueryRow("SELECT COUNT(*) FROM users WHERE username = 'testuser'").Scan(&userCount)
-	require.NoError(t, err)
-	assert.Equal(t, 1, userCount, "testuserが存在しません")
-
 	// メモのCRUD操作テスト
-	var userID string
-	err = suite.db.QueryRow("SELECT id FROM users WHERE username = 'testuser' LIMIT 1").Scan(&userID)
-	require.NoError(t, err)
-
 	// メモを作成
-	var memoID string
-	err = suite.db.QueryRow(`
-		INSERT INTO memos (user_id, title, content, tags, is_public) 
-		VALUES ($1, 'E2Eテストメモ', 'E2Eテスト用のメモです', ARRAY['test', 'e2e'], true) 
+	var memoID int
+	err := suite.db.QueryRow(`
+		INSERT INTO memos (title, content, category, tags, priority, status) 
+		VALUES ('E2Eテストメモ', 'E2Eテスト用のメモです', 'テスト', '["test", "e2e"]', 'medium', 'active') 
 		RETURNING id
-	`, userID).Scan(&memoID)
+	`).Scan(&memoID)
 	require.NoError(t, err)
 
 	// メモを読み取り
-	var title, content string
-	var isPublic bool
+	var title, content, category, tags, priority, status string
 	err = suite.db.QueryRow(`
-		SELECT title, content, is_public 
+		SELECT title, content, category, tags, priority, status
 		FROM memos 
 		WHERE id = $1
-	`, memoID).Scan(&title, &content, &isPublic)
+	`, memoID).Scan(&title, &content, &category, &tags, &priority, &status)
 	require.NoError(t, err)
 	assert.Equal(t, "E2Eテストメモ", title)
 	assert.Equal(t, "E2Eテスト用のメモです", content)
-	assert.True(t, isPublic)
+	assert.Equal(t, "テスト", category)
+	assert.Equal(t, "medium", priority)
+	assert.Equal(t, "active", status)
 
 	// メモを更新
 	_, err = suite.db.Exec(`
 		UPDATE memos 
-		SET title = 'E2Eテストメモ（更新済み）' 
+		SET title = 'E2Eテストメモ（更新済み）', priority = 'high'
 		WHERE id = $1
 	`, memoID)
 	require.NoError(t, err)
 
 	// 更新を確認
-	err = suite.db.QueryRow("SELECT title FROM memos WHERE id = $1", memoID).Scan(&title)
+	err = suite.db.QueryRow("SELECT title, priority FROM memos WHERE id = $1", memoID).Scan(&title, &priority)
 	require.NoError(t, err)
 	assert.Equal(t, "E2Eテストメモ（更新済み）", title)
+	assert.Equal(t, "high", priority)
 
 	// メモを削除
 	_, err = suite.db.Exec("DELETE FROM memos WHERE id = $1", memoID)
@@ -161,10 +183,62 @@ func (suite *E2ETestSuite) TestDatabaseIntegration(t *testing.T) {
 
 // API統合テスト
 func (suite *E2ETestSuite) TestAPIIntegration(t *testing.T) {
-	// APIサーバーに対するHTTPリクエストテスト
-	// TODO: Dockerコンテナ内のAPIサーバーにアクセスするテストを実装
-	// 現在の実装では、APIサーバーが別プロセスとして動作していないため、スキップ
-	t.Skip("APIサーバーの統合テストは別途実装が必要")
+	// Docker環境内でテストを実行している場合のチェック
+	inDocker := os.Getenv("DOCKER_CONTAINER") == "true"
+
+	var baseURL string
+	if inDocker {
+		baseURL = "http://app:8080" // Docker環境内ではappコンテナ名を使用
+	} else {
+		baseURL = "http://localhost:8080" // ローカル環境
+	}
+
+	// APIサーバーのヘルスチェック
+	healthURL := baseURL + "/health"
+
+	// APIサーバーが起動するまで待機
+	maxRetries := 30
+	var resp *http.Response
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err = http.Get(healthURL)
+		if err == nil && resp.StatusCode == 200 {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	if err != nil || resp.StatusCode != 200 {
+		t.Skip("APIサーバーが起動していないため、APIテストをスキップします")
+		return
+	}
+
+	// ヘルスチェックのレスポンス確認
+	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var healthResponse map[string]interface{}
+	err = json.Unmarshal(body, &healthResponse)
+	require.NoError(t, err)
+
+	assert.Equal(t, "OK", healthResponse["status"])
+	assert.Contains(t, healthResponse, "timestamp")
+
+	// メモAPIのテスト（認証なしのテスト用エンドポイントがあれば）
+	// 注意: 実際の本番環境では認証が必要
+	memosURL := baseURL + "/api/memos"
+
+	// GET /api/memos のテスト（認証エラーが期待される）
+	resp, err = http.Get(memosURL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// 認証が必要なので401が期待される
+	assert.Equal(t, 401, resp.StatusCode)
 }
 
 // ログ統合テスト
@@ -206,23 +280,10 @@ func (suite *E2ETestSuite) TestCleanup(t *testing.T) {
 		suite.db.Close()
 	}
 
-	// 現在のディレクトリを変更
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	t.Log("E2Eテスト完了。Docker Composeサービスは保持されます。")
 
-	err = os.Chdir(suite.testDir)
-	require.NoError(t, err)
-
-	// Docker Composeでサービスを停止
-	cmd := exec.Command("docker-compose", "-f", "docker-compose.yml", "down", "-v")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
-	if err != nil {
-		log.Printf("Docker Composeの停止でエラー: %v", err)
-	}
+	// Note: Docker Composeサービスは保持する
+	// 必要に応じて手動で停止: docker compose down -v
 }
 
 // ベンチマークテスト
@@ -232,7 +293,10 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 	}
 
 	// データベース接続
-	dsn := "postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable"
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db?sslmode=disable"
+	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		b.Skip("データベース接続に失敗: " + err.Error())
@@ -243,21 +307,14 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 		b.Skip("データベースpingに失敗: " + err.Error())
 	}
 
-	// ユーザーIDを取得
-	var userID string
-	err = db.QueryRow("SELECT id FROM users WHERE username = 'testuser' LIMIT 1").Scan(&userID)
-	if err != nil {
-		b.Skip("testuserが見つかりません: " + err.Error())
-	}
-
 	b.ResetTimer()
 
 	b.Run("InsertMemo", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			_, err := db.Exec(`
-				INSERT INTO memos (user_id, title, content, tags, is_public) 
-				VALUES ($1, $2, $3, $4, $5)
-			`, userID, fmt.Sprintf("ベンチマークメモ %d", i), "ベンチマーク用メモ", []string{"benchmark"}, false)
+				INSERT INTO memos (title, content, category, priority, status, tags) 
+				VALUES ($1, $2, $3, $4, $5, $6)
+			`, fmt.Sprintf("ベンチマークメモ %d", i), "ベンチマーク用メモ", "work", "medium", "active", "{\"benchmark\"}")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -266,7 +323,7 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 
 	b.Run("SelectMemos", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			rows, err := db.Query("SELECT title, content FROM memos WHERE user_id = $1 LIMIT 10", userID)
+			rows, err := db.Query("SELECT title, content FROM memos LIMIT 10")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -285,7 +342,10 @@ func TestStressDatabase(t *testing.T) {
 		t.Skip("短いテストモードでストレステストをスキップ")
 	}
 
-	dsn := "postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable"
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db?sslmode=disable"
+	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Skip("データベース接続に失敗: " + err.Error())
@@ -314,7 +374,7 @@ func TestStressDatabase(t *testing.T) {
 					return
 				default:
 					var count int
-					err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+					err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM memos").Scan(&count)
 					if err != nil {
 						errChan <- err
 						return

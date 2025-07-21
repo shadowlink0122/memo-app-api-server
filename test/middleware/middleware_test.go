@@ -140,21 +140,66 @@ func TestCORSMiddleware(t *testing.T) {
 func TestAuthMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	r := gin.New()
-	r.Use(middleware.AuthMiddleware())
+	tests := []struct {
+		name           string
+		authHeader     string
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:           "認証ヘッダーなし",
+			authHeader:     "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Authorization header required",
+		},
+		{
+			name:           "不正な認証形式",
+			authHeader:     "Basic dGVzdA==",
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Invalid authorization format",
+		},
+		{
+			name:           "空のtoken",
+			authHeader:     "Bearer ",
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Token is empty",
+		},
+		{
+			name:           "無効なtoken",
+			authHeader:     "Bearer invalid-token",
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Invalid token",
+		},
+		{
+			name:           "有効なtoken",
+			authHeader:     "Bearer valid-token-123",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "protected resource",
+		},
+	}
 
-	r.GET("/protected", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "protected resource"})
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := gin.New()
+			r.Use(middleware.AuthMiddleware())
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/protected", nil)
+			r.GET("/protected", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"message": "protected resource"})
+			})
 
-	r.ServeHTTP(w, req)
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/protected", nil)
 
-	// 現在は空実装なので、すべてのリクエストが通る
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "protected resource")
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Contains(t, w.Body.String(), tt.expectedBody)
+		})
+	}
 }
 
 func TestRateLimitMiddleware(t *testing.T) {
@@ -196,6 +241,7 @@ func TestMiddlewareChain(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/test", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Authorization", "Bearer valid-token-123") // 有効なトークンを追加
 
 	r.ServeHTTP(w, req)
 

@@ -1,24 +1,38 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"memo-app/src/config"
+	"memo-app/src/database"
+	"memo-app/src/infrastructure/repository"
+	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	"memo-app/src/routes"
 	"memo-app/src/storage"
-
-	"github.com/sirupsen/logrus"
+	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
+	// Docker専用実行ガード - ローカル実行を防止
+	if !isRunningInDocker() {
+		fmt.Println("⚠️  エラー: このアプリケーションはDocker環境でのみ実行できます")
+		fmt.Println("   Docker Composeを使用して起動してください:")
+		fmt.Println("   docker-compose up -d")
+		os.Exit(1)
+	}
+
 	// 設定を読み込み
 	cfg := config.LoadConfig()
 
@@ -29,6 +43,27 @@ func main() {
 	defer logger.CloseLogger()
 
 	logger.Log.Info("アプリケーションを開始しています")
+
+	// データベースに接続
+	dbConfig := &database.Config{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	}
+
+	db, err := database.NewDB(dbConfig, logger.Log)
+	if err != nil {
+		logger.Log.WithError(err).Fatal("データベースの接続に失敗")
+	}
+	defer db.Close()
+
+	// リポジトリ、ユースケース、ハンドラーを初期化（クリーンアーキテクチャ）
+	memoRepo := repository.NewMemoRepository(db, logger.Log)
+	memoUsecase := usecase.NewMemoUsecase(memoRepo)
+	memoHandler := handler.NewMemoHandler(memoUsecase, logger.Log)
 
 	// S3アップローダーを初期化（設定が有効な場合）
 	var uploader *storage.LogUploader
@@ -144,7 +179,7 @@ func main() {
 	private := r.Group("/api")
 	private.Use(middleware.AuthMiddleware())
 	{
-		// TODO: 将来的にここで認証が必要なAPIエンドポイントを実装
+		// 旧来の保護されたエンドポイント（後方互換性のため残す）
 		private.GET("/protected", func(c *gin.Context) {
 			logger.WithField("endpoint", "/api/protected").Info("保護されたエンドポイントにアクセス")
 			c.JSON(http.StatusOK, gin.H{
@@ -154,6 +189,9 @@ func main() {
 			})
 		})
 	}
+
+	// メモAPIのルートを設定
+	routes.SetupRoutes(r, memoHandler)
 
 	// グレースフルシャットダウンの設定
 	go func() {
@@ -182,4 +220,36 @@ func main() {
 	if err := r.Run(serverAddr); err != nil {
 		logger.Log.WithError(err).Fatal("サーバーの起動に失敗")
 	}
+}
+
+// isRunningInDocker は、アプリケーションがDockerコンテナ内で実行されているかどうかを判定します。
+func isRunningInDocker() bool {
+	// 環境変数でDocker環境を明示的にチェック
+	if os.Getenv("DOCKER_CONTAINER") == "true" {
+		return true
+	}
+
+	// Linuxの場合、/proc/self/cgroupファイルでDockerを検出
+	if _, err := os.Stat("/proc/self/cgroup"); err == nil {
+		file, err := os.Open("/proc/self/cgroup")
+		if err != nil {
+			return false
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, "docker") || strings.Contains(line, "containerd") {
+				return true
+			}
+		}
+	}
+
+	// /.dockerenvファイルの存在チェック（Docker特有）
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+
+	return false
 }

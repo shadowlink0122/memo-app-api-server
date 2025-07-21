@@ -1,5 +1,9 @@
 # Memo App API Server
 
+**🐳 DOCKER EXCLUSIVE APPLICATION**
+
+**重要:** このアプリケーションはDocker専用で設計されており、ローカル環境でのGoコマンド実行はサポートしていません。すべての操作はDocker Composeを通じて行ってください。
+
 Go + Ginを使用したREST APIサーバーです。
 
 自己管理をしやすくするためのメモアプリを想定しています。
@@ -24,7 +28,21 @@ memo-app-api-server/
 ├── src/
 │   ├── main.go                    # メインアプリケーション
 │   ├── config/
-│   │   └── config.go             # 設定管理
+│   │   └── config.go             # 設定管理（DB、S3、ログ等）
+│   ├── models/
+│   │   └── memo.go               # データモデル定義
+│   ├── database/
+│   │   └── database.go           # データベース接続管理
+│   ├── repository/
+│   │   ├── interface.go          # リポジトリインターフェース
+│   │   └── memo_repository.go    # メモデータアクセス層
+│   ├── service/
+│   │   ├── interface.go          # サービスインターフェース
+│   │   └── memo_service.go       # メモビジネスロジック
+│   ├── handlers/
+│   │   └── memo_handler.go       # メモAPIハンドラー
+│   ├── routes/
+│   │   └── routes.go             # ルート設定
 │   ├── logger/
 │   │   └── logger.go             # 構造化ログシステム
 │   ├── middleware/
@@ -35,12 +53,21 @@ memo-app-api-server/
 │   └── storage/
 │       └── s3_uploader.go        # S3アップロード機能
 ├── test/
-│   └── api_test.go               # APIテストコード
+│   ├── api_test.go               # APIテストコード
+│   ├── models/                   # モデルテスト
+│   ├── service/                  # サービステスト
+│   ├── handlers/                 # ハンドラーテスト
+│   ├── middleware/               # ミドルウェアテスト
+│   ├── logger/                   # ログテスト
+│   ├── storage/                  # ストレージテスト
+│   ├── database/                 # データベーステスト
+│   ├── integration/              # 統合テスト
+│   └── e2e/                      # E2Eテスト
 ├── logs/                         # ログファイル出力先
 ├── scripts/
 │   └── init-minio.sh            # MinIO初期化スクリプト
 ├── docker/
-│   └── init.sql                 # DB初期化SQL
+│   └── init.sql                 # DB初期化SQL（メモテーブル含む）
 ├── go.mod                       # Go モジュール定義
 ├── go.sum                       # 依存関係のハッシュ
 ├── Makefile                     # ビルド・テスト用コマンド
@@ -50,15 +77,37 @@ memo-app-api-server/
 
 ## 主な機能
 
-### API エンドポイント
+### メモAPI
 
-#### パブリック（認証不要）
+#### メモ管理機能
+- **CRUD操作**: メモの作成、読み取り、更新、削除
+- **カテゴリ機能**: メモをカテゴリ別に分類
+- **タグ機能**: 複数のタグによるメモの分類
+- **優先度設定**: low/medium/high の優先度設定
+- **ステータス管理**: active/archived によるメモの状態管理
+- **検索機能**: タイトルとコンテンツの全文検索
+- **フィルタリング**: カテゴリ、ステータス、優先度による絞り込み
+- **ページネーション**: 大量のメモの効率的な取得
+
+#### APIエンドポイント
+
+##### パブリック（認証不要）
 - `GET /` - Hello World（JSON形式）
 - `GET /health` - ヘルスチェック
 - `GET /hello` - Hello World（テキスト形式）
 
-#### プライベート（認証必要）
-- `GET /api/protected` - 認証が必要なエンドポイント
+##### メモAPI（認証必要）
+- `POST /api/memos` - メモの作成
+- `GET /api/memos` - メモ一覧取得（フィルタ・ページネーション対応）
+- `GET /api/memos/:id` - 特定のメモ取得
+- `PUT /api/memos/:id` - メモの更新
+- `DELETE /api/memos/:id` - メモの削除
+- `PATCH /api/memos/:id/archive` - メモのアーカイブ
+- `PATCH /api/memos/:id/restore` - アーカイブメモの復元
+- `GET /api/memos/search?q=検索語` - メモの検索
+
+##### その他プライベート
+- `GET /api/protected` - 認証が必要なエンドポイント（デモ用）
 
 ### ミドルウェア
 
@@ -136,8 +185,10 @@ S3_USE_SSL=true
 
 ### 前提条件
 
-- Go 1.21以上
-- Docker & Docker Compose（MinIO使用時）
+**重要:** このアプリケーションはDocker専用で設計されています。ローカル環境でのGoコマンド実行はサポートしていません。
+
+- Docker 20.x以上
+- Docker Compose 2.x以上
 
 ### 環境変数設定
 
@@ -167,72 +218,127 @@ S3_SECRET_ACCESS_KEY=minioadmin
 S3_BUCKET=memo-app-logs
 ```
 
-### 開発環境での起動
+### Docker環境での起動
 
-#### 1. MinIO（S3互換ストレージ）を起動
+#### 1. 全サービスの起動
 
 ```bash
-# Docker Composeでサービスを起動
-docker-compose up -d minio
+# 全サービスを起動（PostgreSQL + MinIO + アプリ）
+docker compose up -d
 
 # MinIOバケットを初期化
 ./scripts/init-minio.sh
+
+# ログを確認
+docker compose logs -f app
 ```
 
-MinIO管理画面: http://localhost:9001
-- ユーザー名: `minioadmin`
-- パスワード: `minioadmin`
-
-#### 2. アプリケーションの起動
+#### 2. 個別サービスの起動
 
 ```bash
-# 依存関係のインストール
-go mod tidy
+# データベースとMinIOのみ起動
+docker compose up -d db minio
 
-# アプリケーション実行
-make run
-
-# または直接実行
-go run src/main.go
+# アプリケーションも含めて起動
+docker compose up -d
 ```
 
 サーバーは `http://localhost:8080` で起動します。
 
-### Docker環境での起動
+#### 3. サービス管理
 
 ```bash
-# 全サービスを起動（PostgreSQL + MinIO + アプリ）
-docker-compose up -d
+# サービス停止
+docker compose down
+
+# ボリュームも含めて完全削除
+docker compose down -v
+
+# ログリアルタイム表示
+docker compose logs -f
+
+# 特定サービスのログ
+docker compose logs -f app
+```
+
+### 本番環境での起動
+
+本番環境では外部のマネージドサービス（AWS RDS、S3等）を使用し、アプリケーションコンテナのみを実行します。
+
+#### 1. 本番環境用設定
+
+```bash
+# 本番環境用の環境変数をコピー
+cp .env.production .env
+
+# 必要な値を設定（特に以下は必須）
+# DB_HOST=your-rds-endpoint.region.rds.amazonaws.com
+# DB_PASSWORD=your-secure-password
+# S3_ACCESS_KEY_ID=your-aws-access-key
+# S3_SECRET_ACCESS_KEY=your-aws-secret-key
+```
+
+#### 2. 本番環境での起動
+
+```bash
+# 本番環境用Docker Composeで起動
+make docker-prod-up
+
+# または直接実行
+docker compose -f docker-compose.prod.yml up -d
 
 # ログを確認
-docker-compose logs -f app
+docker compose -f docker-compose.prod.yml logs -f app
+
+# 監視サービスも起動する場合
+docker compose -f docker-compose.prod.yml --profile monitoring up -d
 ```
+
+#### 3. 本番環境での停止
+
+```bash
+# 本番環境用サービスを停止
+make docker-prod-down
+
+# または直接実行
+docker compose -f docker-compose.prod.yml down
+```
+
+#### 4. 前提条件（本番環境）
+
+- **AWS RDS**: PostgreSQL 15以上のインスタンス
+- **AWS S3**: ログ保存用のバケット
+- **セキュリティグループ**: 適切なポート（80, 443）の開放
+- **SSL証明書**: HTTPS通信用の証明書設定
+
+### 管理画面アクセス
+
+- **MinIO管理画面**: http://localhost:9001（開発環境のみ）
+  - ユーザー名: `minioadmin`
+  - パスワード: `minioadmin`
+- **API サーバー**: http://localhost:8080（開発環境）/ http://your-domain.com（本番環境）
 
 ## テスト
 
-### テスト実行
+### Docker環境でのテスト実行
+
+**重要:** すべてのテストはDocker環境でのみ実行してください。ローカルGoコマンドでのテスト実行はサポートしていません。
 
 ```bash
-# 全テストを実行
-make test
+# Docker環境でテストコンテナを実行
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 
-# 個別のテスト種別を実行
-make test-unit          # ユニットテスト
-make test-integration   # 統合テスト
-make test-database      # データベーステスト（PostgreSQL必要）
-make test-e2e          # E2Eテスト（Docker環境必要）
+# または個別にテスト実行
+docker compose exec app make test
+
+# 特定のテスト種別を実行
+docker compose exec app make test-unit          # ユニットテスト
+docker compose exec app make test-integration   # 統合テスト
+docker compose exec app make test-database      # データベーステスト
+docker compose exec app make test-e2e          # E2Eテスト
 
 # テストカバレッジ付きで実行
-make test-coverage
-
-# テストカバレッジを関数別に表示
-make test-coverage-func
-
-# テストを監視モードで実行（開発時に便利）
-make test-watch
-
-# テストスクリプトを使用（全テスト順次実行）
-./scripts/run-tests.sh
+docker compose exec app make test-coverage
 ```
 
 ### テストファイル構成
@@ -258,53 +364,163 @@ test/
 
 ### テスト環境の前提条件
 
-- **ユニットテスト**: 依存関係なし、単独実行可能
-- **統合テスト**: アプリケーションレベルのHTTPテスト、依存関係なし
-- **データベーステスト**: PostgreSQLが必要（`docker-compose up -d postgres`）
-- **E2Eテスト**: 完全なDocker環境が必要（`docker-compose up -d`）
+- **すべてのテスト**: Docker Composeが起動している必要があります
+- **データベーステスト**: PostgreSQLサービスが必要（`docker compose up -d db`）
+- **E2Eテスト**: 全サービスが必要（`docker compose up -d`）
 
-## ビルド
+## 開発とビルド
+
+### Docker環境での開発
+
+**重要:** ローカルでのGoコマンド実行はサポートしていません。すべての開発作業はDocker環境で行ってください。
 
 ```bash
-# バイナリファイルを生成
-make build
+# アプリケーションをDocker環境でビルド
+docker compose exec app make build
 
-# 生成されたバイナリを実行
-./bin/memo-app
+# Dockerコンテナ内でシェルを開く（開発作業用）
+docker compose exec app /bin/sh
+
+# ファイル変更の監視（Hot Reload）
+# docker-compose.ymlでvolumesがマウントされているため
+# ローカルでファイルを編集すると自動的にコンテナに反映されます
 ```
 
-## 開発
-
-### 利用可能なMakeコマンド
+### 利用可能なDockerコマンド
 
 ```bash
-make help              # 利用可能なコマンドを表示
-make build             # アプリケーションをビルド
-make run               # アプリケーションを実行
-make test              # テストを実行
-make test-watch        # テストを監視モードで実行
-make test-coverage     # テストカバレッジレポートを生成
-make test-coverage-func # テストカバレッジを関数別に表示
-make tidy              # 依存関係を整理
-make clean             # 生成ファイルを削除
+# Docker環境の管理
+docker compose up -d          # 全サービス起動
+docker compose down           # 全サービス停止
+docker compose logs -f app    # アプリログの監視
+docker compose restart app   # アプリサービスの再起動
+
+# コンテナ内でのコマンド実行
+docker compose exec app make test              # テストを実行
+docker compose exec app make test-coverage     # テストカバレッジを生成
+docker compose exec app make build             # アプリケーションをビルド
 ```
 
 ## 使用技術
 
 - **Go** 1.24.5
-- **Gin** - HTTPウェブフレームワーク
+- **Gin** - HTTPウェブフレームワーク  
 - **Testify** - テストライブラリ
+- **Docker** - コンテナ化プラットフォーム
+- **Docker Compose** - マルチコンテナ管理
+- **PostgreSQL** - リレーショナルデータベース
+- **MinIO** - S3互換オブジェクトストレージ
 
 ## 今後の拡張予定
 
 - JWT認証の実装
-- データベース連携
 - API レート制限の実装
 - ログ設定の改善
-- Docker対応
 - CI/CD パイプライン
 
 ## API使用例
+
+### 1. メモの作成
+
+```bash
+curl -X POST http://localhost:8080/api/memos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "重要なタスク",
+    "content": "明日までにプレゼン資料を作成する",
+    "category": "仕事",
+    "tags": ["プレゼン", "重要"],
+    "priority": "high"
+  }'
+```
+
+### 2. メモ一覧の取得
+
+```bash
+# 全メモ取得
+curl http://localhost:8080/api/memos
+
+# フィルタリング付き取得
+curl "http://localhost:8080/api/memos?category=仕事&status=active&page=1&limit=10"
+```
+
+### 3. 特定のメモ取得
+
+```bash
+curl http://localhost:8080/api/memos/1
+```
+
+### 4. メモの更新
+
+```bash
+curl -X PUT http://localhost:8080/api/memos/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "更新されたタスク",
+    "priority": "medium"
+  }'
+```
+
+### 5. メモの検索
+
+```bash
+curl "http://localhost:8080/api/memos/search?q=プレゼン&page=1&limit=5"
+```
+
+### 6. メモのアーカイブ
+
+```bash
+curl -X PATCH http://localhost:8080/api/memos/1/archive
+```
+
+### 7. メモの削除
+
+```bash
+curl -X DELETE http://localhost:8080/api/memos/1
+```
+
+### レスポンス例
+
+#### メモ作成成功時
+
+```json
+{
+  "id": 1,
+  "title": "重要なタスク",
+  "content": "明日までにプレゼン資料を作成する",
+  "category": "仕事",
+  "tags": "[\"プレゼン\", \"重要\"]",
+  "priority": "high",
+  "status": "active",
+  "created_at": "2025-07-21T10:00:00+09:00",
+  "updated_at": "2025-07-21T10:00:00+09:00",
+  "completed_at": null
+}
+```
+
+#### メモ一覧取得時
+
+```json
+{
+  "memos": [
+    {
+      "id": 1,
+      "title": "重要なタスク",
+      "content": "明日までにプレゼン資料を作成する",
+      "category": "仕事",
+      "tags": "[\"プレゼン\", \"重要\"]",
+      "priority": "high",
+      "status": "active",
+      "created_at": "2025-07-21T10:00:00+09:00",
+      "updated_at": "2025-07-21T10:00:00+09:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "total_pages": 1
+}
+```
 
 ```bash
 # Hello World
