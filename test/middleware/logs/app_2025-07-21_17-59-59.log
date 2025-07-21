@@ -1,0 +1,13 @@
+{"level":"info","msg":"ロガーが初期化されました","time":"2025-07-21T17:59:59+09:00"}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T17:59:59+09:00","uri":"","user_agent":"test-agent"}
+{"client_ip":"","latency":"935.667µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":18,"status_code":200,"time":"2025-07-21T17:59:59+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T17:59:59+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"131µs","latency_ms":0,"level":"error","method":"GET","msg":"リクエスト完了 - サーバーエラー","response_size":22,"status_code":500,"time":"2025-07-21T17:59:59+09:00","uri":""}
+{"errors":"Error #01: assert.AnError general error for testing\n","level":"error","method":"GET","msg":"リクエスト処理中にエラーが発生","time":"2025-07-21T17:59:59+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"認証ミドルウェア: リクエストを処理中","time":"2025-07-21T17:59:59+09:00","uri":""}
+{"client_ip":"","level":"warning","msg":"認証失敗: Authorizationヘッダーがありません","time":"2025-07-21T17:59:59+09:00"}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T17:59:59+09:00","uri":"","user_agent":""}
+{"client_ip":"","level":"info","method":"GET","msg":"認証ミドルウェア: リクエストを処理中","time":"2025-07-21T17:59:59+09:00","uri":""}
+{"client_ip":"","level":"warning","msg":"認証失敗: Authorizationヘッダーがありません","time":"2025-07-21T17:59:59+09:00"}
+{"client_ip":"","latency":"759µs","latency_ms":0,"level":"warning","method":"GET","msg":"リクエスト完了 - クライアントエラー","response_size":41,"status_code":401,"time":"2025-07-21T17:59:59+09:00","uri":""}
+{"level":"info","msg":"ログファイルを閉じます","time":"2025-07-21T17:59:59+09:00"}

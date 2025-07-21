@@ -1,0 +1,358 @@
+{"level":"info","msg":"ロガーが初期化されました","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"1.503333ms","latency_ms":1,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"43.334µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":74,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/hello","level":"info","msg":"Hello（テキスト）エンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"30.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":12,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","level":"info","method":"GET","msg":"認証ミドルウェア: リクエストを処理中","time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"warning","msg":"認証失敗: Authorizationヘッダーがありません","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"61.5µs","latency_ms":0,"level":"warning","method":"GET","msg":"リクエスト完了 - クライアントエラー","response_size":41,"status_code":401,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","level":"info","method":"GET","msg":"認証ミドルウェア: リクエストを処理中","time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"warning","msg":"認証失敗: 無効なtoken","time":"2025-07-21T16:53:29+09:00","token":"invalid_to..."}
+{"client_ip":"","latency":"49.292µs","latency_ms":0,"level":"warning","method":"GET","msg":"リクエスト完了 - クライアントエラー","response_size":25,"status_code":401,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","level":"info","method":"GET","msg":"認証ミドルウェア: リクエストを処理中","time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","msg":"認証成功","time":"2025-07-21T16:53:29+09:00"}
+{"endpoint":"/api/protected","level":"info","msg":"保護されたエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"75.125µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":145,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"OPTIONS","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"83.625µs","latency_ms":0,"level":"info","method":"OPTIONS","msg":"リクエスト完了 - 成功","response_size":0,"status_code":204,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"123.083µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"65.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"59.083µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"26.917µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.667µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"36.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"25.833µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":74,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/hello","level":"info","msg":"Hello（テキスト）エンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":12,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"POST","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"23.792µs","latency_ms":0,"level":"warning","method":"POST","msg":"リクエスト完了 - クライアントエラー","response_size":-1,"status_code":404,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"PUT","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"26.291µs","latency_ms":0,"level":"warning","method":"PUT","msg":"リクエスト完了 - クライアントエラー","response_size":-1,"status_code":404,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"DELETE","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"19.583µs","latency_ms":0,"level":"warning","method":"DELETE","msg":"リクエスト完了 - クライアントエラー","response_size":-1,"status_code":404,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"PATCH","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"14.958µs","latency_ms":0,"level":"warning","method":"PATCH","msg":"リクエスト完了 - クライアントエラー","response_size":-1,"status_code":404,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"client_ip":"","latency":"16.5µs","latency_ms":0,"level":"warning","method":"GET","msg":"リクエスト完了 - クライアントエラー","response_size":-1,"status_code":404,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"28.125µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"35.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.5µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.083µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.875µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.791µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"24.541µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.042µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.75µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.791µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"37.583µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"26.75µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.083µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.875µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.958µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"2.086583ms","latency_ms":2,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"28.709µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.916µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.459µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"26.041µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.333µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.417µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"201.167µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"543.916µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.75µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.5µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.333µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"87.584µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"62.791µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.833µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"24.708µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"49.667µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.958µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"35.667µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.417µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"26.75µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.208µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.042µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"34.791µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"24.791µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.5µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.959µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.042µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.416µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.458µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"25.916µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.959µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"27µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"33.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.333µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.125µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.542µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22.708µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"24.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"26.208µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.5µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16.625µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"15.833µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.666µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16.75µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"22µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.291µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.875µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16.958µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.042µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"24.416µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.209µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16.5µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"23.334µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.042µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"16.458µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.958µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"19.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"17.542µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.25µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"39.417µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"27.792µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"20.166µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"18.292µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"client_ip":"","level":"info","method":"GET","msg":"リクエスト開始","referer":"","time":"2025-07-21T16:53:29+09:00","uri":"","user_agent":""}
+{"endpoint":"/","level":"info","msg":"Hello Worldエンドポイントにアクセス","time":"2025-07-21T16:53:29+09:00"}
+{"client_ip":"","latency":"21.375µs","latency_ms":0,"level":"info","method":"GET","msg":"リクエスト完了 - 成功","response_size":73,"status_code":200,"time":"2025-07-21T16:53:29+09:00","uri":""}
+{"level":"info","msg":"ログファイルを閉じます","time":"2025-07-21T16:53:29+09:00"}

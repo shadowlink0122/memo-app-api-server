@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # Goアプリケーションコンテナ
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memo-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=memo_user
+      - DB_PASSWORD=memo_password
+      - DB_NAME=memo_db
+      - DB_SSLMODE=disable
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_REGION=us-east-1
+      - S3_BUCKET=memo-app-logs
+      - S3_USE_SSL=false
+      - LOG_UPLOAD_ENABLED=true
+      - LOG_UPLOAD_MAX_AGE=1h
+      - LOG_UPLOAD_INTERVAL=30m
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - app_logs:/app/logs
+    networks:
+      - memo-network
+    # EC2 t2.microを想定したリソース制限
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQLデータベースコンテナ
+  db:
+    image: postgres:15-alpine
+    container_name: memo-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432" # ローカルアクセス用ポートマッピング
+    environment:
+      - POSTGRES_DB=memo_db
+      - POSTGRES_USER=memo_user
+      - POSTGRES_PASSWORD=memo_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - memo-network
+    # EC2 t2.microを想定したリソース制限
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U memo_user -d memo_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # MinIO（S3互換ストレージ）
+  minio:
+    image: minio/minio:latest
+    container_name: memo-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - memo-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/ready" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
+
+  # MinIO初期化用コンテナ
+  minio-init:
+    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
+    container_name: memo-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c " mc alias set minio http://minio:9000 minioadmin minioadmin; mc mb minio/memo-app-logs --ignore-existing; mc anonymous set public minio/memo-app-logs; echo 'MinIO初期化完了'; "
+    networks:
+      - memo-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+        reservations:
+          cpus: '0.05'
+          memory: 16M
+
+  # 開発用: データベース管理ツール（オプション）
+  adminer:
+    image: adminer:4.8.1
+    container_name: memo-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+    depends_on:
+      - db
+    networks:
+      - memo-network
+    profiles:
+      - dev
+    # 軽量なリソース設定
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 64M
+        reservations:
+          cpus: '0.05'
+          memory: 16M
+
+# 永続化ボリューム
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  app_logs:
+    driver: local
+
+# ネットワーク設定
+networks:
+  memo-network:
+    driver: bridge

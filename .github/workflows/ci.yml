@@ -1,0 +1,208 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  # ユニットテストと統合テスト
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: memo_db
+          POSTGRES_USER: memo_user
+          POSTGRES_PASSWORD: memo_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run tests with coverage
+      env:
+        TEST_DATABASE_URL: postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable
+        COVERAGE: true
+        VERBOSE: true
+      run: |
+        chmod +x scripts/run-tests.sh
+        ./scripts/run-tests.sh unit
+
+    - name: Run integration tests
+      env:
+        VERBOSE: true
+      run: |
+        ./scripts/run-tests.sh integration
+
+    - name: Run API tests
+      env:
+        VERBOSE: true
+      run: |
+        ./scripts/run-tests.sh api
+
+    - name: Run database tests
+      env:
+        TEST_DATABASE_URL: postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable
+        VERBOSE: true
+      run: |
+        # データベースの初期化
+        PGPASSWORD=memo_password psql -h localhost -p 5433 -U memo_user -d memo_db -f docker/init.sql
+        ./scripts/run-tests.sh database
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage-total.out
+        flags: unittests
+        name: codecov-umbrella
+
+  # Linting and formatting
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+
+  # セキュリティスキャン
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: './...'
+
+  # E2Eテスト（Dockerを使用）
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Start services with Docker Compose
+      run: |
+        docker-compose up -d --build
+        sleep 30  # サービス起動を待機
+
+    - name: Run E2E tests
+      run: |
+        chmod +x scripts/run-tests.sh
+        ./scripts/run-tests.sh e2e
+
+    - name: Stop services
+      if: always()
+      run: docker-compose down -v
+
+  # ビルドテスト
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build application
+      run: |
+        go build -v -o bin/memo-app src/main.go
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: memo-app-binary
+        path: bin/memo-app
+
+  # Docker イメージビルドテスト
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: memo-app:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

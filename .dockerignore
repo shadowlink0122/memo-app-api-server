@@ -1,0 +1,41 @@
+# Git関連
+.git
+.gitignore
+
+# 開発関連
+.env
+.env.local
+*.log
+
+# テスト関連
+test/
+coverage.out
+coverage.html
+
+# ビルド成果物
+bin/
+*.exe
+
+# IDE関連
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# Docker関連
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# ドキュメント
+README.md
+docs/
+
+# 一時ファイル
+tmp/
+temp/
+*.tmp

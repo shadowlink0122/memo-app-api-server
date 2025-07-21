@@ -1,0 +1,103 @@
+# 本番環境用のdocker-compose設定
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memo-app-prod
+    restart: always
+    ports:
+      - "80:8080"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=memo_user
+      - DB_PASSWORD=${DB_PASSWORD} # 環境変数から取得
+      - DB_NAME=memo_db
+      - DB_SSLMODE=require
+      - LOG_LEVEL=info
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - memo-network
+    # EC2 t2.microに最適化したリソース制限
+    deploy:
+      resources:
+        limits:
+          cpus: '0.7'
+          memory: 400M
+        reservations:
+          cpus: '0.2'
+          memory: 100M
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: postgres:15-alpine
+    container_name: memo-db-prod
+    restart: always
+    environment:
+      - POSTGRES_DB=memo_db
+      - POSTGRES_USER=memo_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/backup:/backup
+    networks:
+      - memo-network
+    # DBに多めのリソースを割り当て
+    deploy:
+      resources:
+        limits:
+          cpus: '0.6'
+          memory: 550M
+        reservations:
+          cpus: '0.2'
+          memory: 200M
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U memo_user -d memo_db" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ログ収集用（オプション）
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: memo-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300 # 5分間隔でチェック
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    command: memo-app-prod memo-db-prod
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  memo-network:
+    driver: bridge
