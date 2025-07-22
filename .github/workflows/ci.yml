@@ -1,19 +1,104 @@
 name: CI/CD Pipeline
 
+# ブランチ戦略:
+# - 全ジョブ（テスト・ビルド・リント・セキュリティスキャン・E2E）: 全ブランチで実行
+# - デプロイ: main, master, develop ブランチ + PR のみ（将来実装予定）
+
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ '**' ]  # すべてのブランチでテスト・リントを実行
   pull_request:
-    branches: [ main, develop ]
+    branches: [ '**' ]  # すべてのブランチに対するPRでテスト・リントを実行
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.24.5'
 
 jobs:
-  # ユニットテストと統合テスト
+  # ビルドとDockerイメージ作成（全ジョブの基盤）
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Build application
+      run: |
+        mkdir -p bin
+        go build -v -o bin/memo-app src/main.go
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: memo-app-binary
+        path: bin/memo-app
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and export Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        dockerfile: |
+          FROM golang:1.24.5-alpine AS test
+          RUN apk --no-cache add git ca-certificates tzdata wget curl make bash
+          WORKDIR /app
+          COPY . .
+          RUN go mod download
+          ENV DOCKER_CONTAINER=true
+          ENV GIN_MODE=test
+          RUN mkdir -p /app/logs
+          EXPOSE 8080
+          CMD ["tail", "-f", "/dev/null"]
+          
+          FROM golang:1.24.5-alpine AS builder
+          WORKDIR /app
+          COPY . .
+          RUN go mod download
+          RUN CGO_ENABLED=0 GOOS=linux go build -o memo-app src/main.go
+          
+          FROM alpine:3.19 AS production
+          RUN apk --no-cache add ca-certificates tzdata
+          WORKDIR /app
+          COPY --from=builder /app/memo-app .
+          RUN chmod +x ./memo-app
+          ENV DOCKER_CONTAINER=true
+          EXPOSE 8080
+          CMD ["./memo-app"]
+        target: test
+        push: false
+        tags: memo-app:latest
+        outputs: type=docker,dest=/tmp/memo-app.tar
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Upload Docker image
+      uses: actions/upload-artifact@v4
+      with:
+        name: memo-app-docker
+        path: /tmp/memo-app.tar
+
+  # ユニットテストと統合テスト（ビルド後に実行）
   test:
     name: Tests
     runs-on: ubuntu-latest
+    needs: build
     
     services:
       postgres:
@@ -34,65 +119,123 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Download Docker image
+      uses: actions/download-artifact@v4
       with:
-        go-version: ${{ env.GO_VERSION }}
+        name: memo-app-docker
+        path: /tmp/
 
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Install dependencies
-      run: go mod download
-
-    - name: Verify dependencies
-      run: go mod verify
-
-    - name: Run tests with coverage
-      env:
-        TEST_DATABASE_URL: postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable
-        COVERAGE: true
-        VERBOSE: true
+    - name: Load Docker image
       run: |
-        chmod +x scripts/run-tests.sh
-        ./scripts/run-tests.sh unit
+        docker load --input /tmp/memo-app.tar
+        docker image ls -a
 
-    - name: Run integration tests
-      env:
-        VERBOSE: true
+    - name: Install PostgreSQL client
       run: |
-        ./scripts/run-tests.sh integration
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
 
-    - name: Run API tests
-      env:
-        VERBOSE: true
+    - name: Wait for PostgreSQL
       run: |
-        ./scripts/run-tests.sh api
+        echo "PostgreSQLサービスの起動を待機中..."
+        for i in {1..30}; do
+          if PGPASSWORD=memo_password psql -h localhost -p 5433 -U memo_user -d memo_db -c "SELECT 1;" > /dev/null 2>&1; then
+            echo "PostgreSQLサービスが利用可能です"
+            break
+          fi
+          echo "待機中... ($i/30)"
+          sleep 2
+        done
 
-    - name: Run database tests
-      env:
-        TEST_DATABASE_URL: postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable
-        VERBOSE: true
+    - name: Initialize database
       run: |
-        # データベースの初期化
-        PGPASSWORD=memo_password psql -h localhost -p 5433 -U memo_user -d memo_db -f docker/init.sql
-        ./scripts/run-tests.sh database
+        echo "データベースを初期化中..."
+        # マイグレーションスクリプトを使用してデータベースを初期化
+        PGPASSWORD=memo_password ./scripts/migrate-database.sh \
+          --host localhost \
+          --port 5433 \
+          --username memo_user \
+          --database memo_db \
+          --both \
+          --verbose
+        echo "データベース初期化完了"
+
+    - name: Run tests in Docker container
+      run: |
+        # Dockerコンテナ内でユニットテストを実行
+        docker run --rm \
+          --network host \
+          -e TEST_DATABASE_URL="postgres://memo_user:memo_password@localhost:5433/memo_db?sslmode=disable" \
+          -e COVERAGE=true \
+          -e VERBOSE=true \
+          memo-app:latest \
+          sh -c "go test ./test/config ./test/middleware ./test/logger ./test/storage -v -cover"
+
+    - name: Run integration tests in Docker container
+      run: |
+        docker run --rm \
+          --network host \
+          -e VERBOSE=true \
+          memo-app:latest \
+          sh -c "go test ./test/integration -v"
+
+    - name: Run API tests in Docker container
+      run: |
+        docker run --rm \
+          --network host \
+          -e VERBOSE=true \
+          memo-app:latest \
+          sh -c "go test ./test -v"
+
+    - name: Run database tests in Docker container
+      run: |
+        # テスト用データベースの確認と初期化
+        PGPASSWORD=memo_password psql -h localhost -p 5433 -U memo_user -d memo_db_test -c "SELECT 1;" || {
+          echo "テスト用データベースが見つかりません。マイグレーションを再実行します。"
+          PGPASSWORD=memo_password ./scripts/migrate-database.sh \
+            --host localhost \
+            --port 5433 \
+            --username memo_user \
+            --database memo_db \
+            --test-db \
+            --verbose
+        }
+        # Dockerコンテナ内でデータベーステストを実行
+        docker run --rm \
+          --network host \
+          -e TEST_DATABASE_URL="postgres://memo_user:memo_password@localhost:5433/memo_db_test?sslmode=disable" \
+          -e VERBOSE=true \
+          memo-app:latest \
+          sh -c "go test ./test/database -v"
+
+    - name: Generate coverage report in Docker container
+      run: |
+        # カバレッジディレクトリを作成
+        mkdir -p /tmp/coverage
+        
+        # Dockerコンテナ内で全テストのカバレッジを生成
+        docker run --rm \
+          --network host \
+          -v /tmp/coverage:/tmp/coverage \
+          -e TEST_DATABASE_URL="postgres://memo_user:memo_password@localhost:5433/memo_db_test?sslmode=disable" \
+          memo-app:latest \
+          sh -c "go test ./test/... -v -cover -coverprofile=/tmp/coverage/coverage.out && go tool cover -html=/tmp/coverage/coverage.out -o /tmp/coverage/coverage.html"
+        
+        # カバレッジファイルをホストにコピー
+        cp /tmp/coverage/coverage.out ./coverage.out || echo "coverage.out not found"
+        cp /tmp/coverage/coverage.html ./coverage.html || echo "coverage.html not found"
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
-        file: ./coverage-total.out
+        file: ./coverage.out
         flags: unittests
         name: codecov-umbrella
 
-  # Linting and formatting
+  # Linting and formatting（シンプルなホスト環境実行）
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -106,15 +249,53 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
+    - name: Install dependencies
+      run: go mod download
 
-  # セキュリティスキャン
+    - name: Run CI lint checks
+      run: |
+        echo "🔍 CI用リントを実行しています..."
+        
+        echo "📝 go fmt をチェック中..."
+        unformatted_files=$(gofmt -l .)
+        if [ -n "$unformatted_files" ]; then
+          echo "❌ フォーマットされていないファイルがあります:"
+          echo "$unformatted_files"
+          echo "以下のコマンドで修正してください: go fmt ./..."
+          exit 1
+        else
+          echo "✅ go fmt チェック完了"
+        fi
+        
+        echo "📝 go vet を実行中..."
+        go vet ./...
+        echo "✅ go vet 完了"
+        
+        echo "📝 go mod verify を実行中..."
+        go mod verify
+        echo "✅ go mod verify 完了"
+        
+        echo "📝 go mod tidy をチェック中..."
+        cp go.mod go.mod.bak
+        cp go.sum go.sum.bak
+        go mod tidy
+        if ! diff go.mod go.mod.bak >/dev/null || ! diff go.sum go.sum.bak >/dev/null; then
+          echo "❌ go.mod または go.sum が最新ではありません"
+          echo "以下のコマンドで修正してください: go mod tidy"
+          rm -f go.mod.bak go.sum.bak
+          exit 1
+        else
+          echo "✅ go mod tidy チェック完了"
+          rm -f go.mod.bak go.sum.bak
+        fi
+        
+        echo "🎉 CI用リント完了"
+
+  # セキュリティスキャン（ビルド後に実行）
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
     - name: Checkout code
@@ -125,15 +306,23 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Run Gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
-      with:
-        args: './...'
+    - name: Install dependencies
+      run: go mod download
 
-  # E2Eテスト（Dockerを使用）
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: memo-app-binary
+        path: bin/
+
+    - name: Run Security Scan
+      run: make security-ci
+
+  # E2Eテスト（Dockerイメージを使用）
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
+    needs: build
     
     steps:
     - name: Checkout code
@@ -147,62 +336,83 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Download Docker image
+      uses: actions/download-artifact@v4
+      with:
+        name: memo-app-docker
+        path: /tmp/
+
+    - name: Load Docker image
+      run: |
+        docker load --input /tmp/memo-app.tar
+        docker image ls -a
+
     - name: Start services with Docker Compose
       run: |
-        docker-compose up -d --build
-        sleep 30  # サービス起動を待機
+        # CI用Docker Composeでサービスを起動（ビルド済みイメージを使用）
+        docker compose -f docker-compose.ci.yml up -d
+        
+        # サービスが起動するまで待機
+        echo "サービスの起動を待機中..."
+        
+        # PostgreSQLが利用可能になるまで待機
+        echo "PostgreSQLの起動確認中..."
+        for i in {1..30}; do
+          if docker compose -f docker-compose.ci.yml exec -T db pg_isready -U memo_user -d memo_db > /dev/null 2>&1; then
+            echo "PostgreSQL ready"
+            break
+          fi
+          echo "PostgreSQL waiting... ($i/30)"
+          sleep 2
+        done
+        
+        # MinIOが利用可能になるまで待機
+        echo "MinIOの起動確認中..."
+        for i in {1..30}; do
+          if curl -f http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+            echo "MinIO ready"
+            break
+          fi
+          echo "MinIO waiting... ($i/30)"
+          sleep 2
+        done
+        
+        # アプリケーションが利用可能になるまで待機
+        echo "アプリケーションの起動確認中..."
+        for i in {1..60}; do
+          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            echo "Application ready"
+            break
+          fi
+          echo "Application waiting... ($i/60)"
+          sleep 2
+        done
+        
+        echo "全サービスの起動完了"
+
+    - name: Check service status and logs
+      run: |
+        echo "=== サービス状態確認 ==="
+        docker compose -f docker-compose.ci.yml ps
+        
+        echo "=== アプリケーションログ ==="
+        docker compose -f docker-compose.ci.yml logs app
+        
+        echo "=== データベースログ ==="
+        docker compose -f docker-compose.ci.yml logs db
+        
+        echo "=== ヘルスチェック結果 ==="
+        curl -v http://localhost:8080/health || echo "Health check failed"
 
     - name: Run E2E tests
       run: |
-        chmod +x scripts/run-tests.sh
-        ./scripts/run-tests.sh e2e
+        # CI環境であることを通知
+        export CI_ENVIRONMENT=true
+        export E2E_SKIP_COMPOSE_SETUP=true
+        
+        # E2Eテストを実行
+        go test ./test/e2e -v -timeout=10m
 
     - name: Stop services
       if: always()
-      run: docker-compose down -v
-
-  # ビルドテスト
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Build application
-      run: |
-        go build -v -o bin/memo-app src/main.go
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: memo-app-binary
-        path: bin/memo-app
-
-  # Docker イメージビルドテスト
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        push: false
-        tags: memo-app:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      run: docker compose -f docker-compose.ci.yml down -v

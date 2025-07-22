@@ -1,0 +1,111 @@
+services:
+  # CI環境用Goアプリケーション（既存イメージを使用）
+  app:
+    image: memo-app:latest # CI でビルドしたイメージを使用
+    container_name: memo-app-ci
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=test
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=memo_user
+      - DB_PASSWORD=memo_password
+      - DB_NAME=memo_db
+      - DB_SSLMODE=disable
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_REGION=us-east-1
+      - S3_BUCKET=memo-app-logs
+      - S3_USE_SSL=false
+      - LOG_UPLOAD_ENABLED=false # E2Eテストでは無効
+      - DOCKER_CONTAINER=true
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - app_logs:/app/logs
+      - ./migrations:/app/migrations # マイグレーションファイルをマウント
+    networks:
+      - memo-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # PostgreSQLデータベース
+  db:
+    image: postgres:15
+    container_name: memo-postgres-ci
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: memo_db
+      POSTGRES_USER: memo_user
+      POSTGRES_PASSWORD: memo_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro # 初期化時にマイグレーション実行
+    networks:
+      - memo-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U memo_user -d memo_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # MinIO S3互換ストレージ
+  minio:
+    image: minio/minio:latest
+    container_name: memo-minio-ci
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - memo-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # MinIO初期化サービス
+  minio-init:
+    image: minio/mc:latest
+    container_name: memo-minio-init-ci
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - memo-network
+    entrypoint: >
+      /bin/sh -c " echo 'MinIOを設定中...'; /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin; /usr/bin/mc mb myminio/memo-app-logs || echo 'Bucket already exists'; /usr/bin/mc policy set public myminio/memo-app-logs; echo 'MinIO設定完了'; "
+
+# ネットワーク定義
+networks:
+  memo-network:
+    driver: bridge
+
+# ボリューム定義
+volumes:
+  postgres_data:
+  minio_data:
+  app_logs:

@@ -32,7 +32,7 @@ func TestE2E(t *testing.T) {
 	}
 
 	suite := &E2ETestSuite{
-		composeFile: "../docker-compose.yml",
+		composeFile: "../docker-compose.ci.yml",
 		testDir:     "../",
 	}
 
@@ -48,8 +48,9 @@ func TestE2E(t *testing.T) {
 func (suite *E2ETestSuite) TestSetup(t *testing.T) {
 	// Docker環境内でテストを実行している場合のチェック
 	inDocker := os.Getenv("DOCKER_CONTAINER") == "true"
+	skipComposeSetup := os.Getenv("E2E_SKIP_COMPOSE_SETUP") == "true"
 
-	if !inDocker {
+	if !inDocker && !skipComposeSetup {
 		// ローカル環境での実行：Docker Composeを起動
 		originalDir, err := os.Getwd()
 		require.NoError(t, err)
@@ -58,14 +59,14 @@ func (suite *E2ETestSuite) TestSetup(t *testing.T) {
 		err = os.Chdir(suite.testDir)
 		require.NoError(t, err)
 
-		// 既存のDocker Composeサービスの状態をチェック
-		cmd := exec.Command("docker", "compose", "ps", "--services", "--filter", "status=running")
+		// CI環境の場合、既存のサービスが起動済みかチェック
+		cmd := exec.Command("docker", "compose", "-f", suite.composeFile, "ps", "--services", "--filter", "status=running")
 		output, err := cmd.Output()
 
 		if err != nil || len(output) == 0 {
 			// サービスが動いていない場合は起動
 			t.Log("Docker Composeサービスを起動中...")
-			cmd := exec.Command("docker", "compose", "-f", "docker-compose.yml", "up", "-d")
+			cmd := exec.Command("docker", "compose", "-f", suite.composeFile, "up", "-d")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
@@ -80,18 +81,35 @@ func (suite *E2ETestSuite) TestSetup(t *testing.T) {
 			time.Sleep(5 * time.Second)
 		}
 	} else {
-		t.Log("Docker環境内でテストを実行：既存のサービスを使用")
-		// Docker環境内では短い待機のみ
+		if skipComposeSetup {
+			t.Log("CI環境：Docker Composeセットアップをスキップ")
+		} else {
+			t.Log("Docker環境内でテストを実行：既存のサービスを使用")
+		}
+		// 短い待機のみ
 		time.Sleep(5 * time.Second)
 	}
 
 	// データベース接続を確立
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
+		// CI環境での実行チェック
+		ciEnvironment := os.Getenv("CI_ENVIRONMENT") == "true"
+
 		if inDocker {
-			dsn = "postgres://memo_user:memo_password@db:5432/memo_db_test?sslmode=disable"
+			if ciEnvironment {
+				// CI環境では通常のメインDBを使用
+				dsn = "postgres://memo_user:memo_password@db:5432/memo_db?sslmode=disable"
+			} else {
+				dsn = "postgres://memo_user:memo_password@db:5432/memo_db_test?sslmode=disable"
+			}
 		} else {
-			dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
+			if ciEnvironment {
+				// CI環境では通常のメインDBを使用
+				dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db?sslmode=disable"
+			} else {
+				dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
+			}
 		}
 	}
 
