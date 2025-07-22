@@ -2,11 +2,11 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"memo-app/src/domain"
 	"memo-app/src/usecase"
+	"memo-app/src/validator"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -16,6 +16,7 @@ import (
 type MemoHandler struct {
 	memoUsecase usecase.MemoUsecase
 	logger      *logrus.Logger
+	validator   *validator.CustomValidator
 }
 
 // NewMemoHandler creates a new memo handler
@@ -23,6 +24,7 @@ func NewMemoHandler(memoUsecase usecase.MemoUsecase, logger *logrus.Logger) *Mem
 	return &MemoHandler{
 		memoUsecase: memoUsecase,
 		logger:      logger,
+		validator:   validator.NewCustomValidator(),
 	}
 }
 
@@ -38,12 +40,35 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		return
 	}
 
+	// カスタムバリデーション実行
+	if err := h.validator.Validate(&req); err != nil {
+		h.logger.WithError(err).Error("バリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// 入力値のサニタイゼーション
+	sanitizedReq := CreateMemoRequestDTO{
+		Title:    h.validator.SanitizeInput(req.Title),
+		Content:  h.validator.SanitizeInput(req.Content),
+		Category: h.validator.SanitizeInput(req.Category),
+		Tags:     h.validator.SanitizeTags(req.Tags),
+		Priority: req.Priority, // 列挙値なのでサニタイズ不要
+	}
+
 	usecaseReq := usecase.CreateMemoRequest{
-		Title:    req.Title,
-		Content:  req.Content,
-		Category: req.Category,
-		Tags:     req.Tags,
-		Priority: req.Priority,
+		Title:    sanitizedReq.Title,
+		Content:  sanitizedReq.Content,
+		Category: sanitizedReq.Category,
+		Tags:     sanitizedReq.Tags,
+		Priority: sanitizedReq.Priority,
 	}
 
 	memo, err := h.memoUsecase.CreateMemo(c.Request.Context(), usecaseReq)
@@ -69,11 +94,12 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 // GetMemo retrieves a memo by ID
 func (h *MemoHandler) GetMemo(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
 			Error:   "Invalid memo ID",
-			Message: "Memo ID must be a number",
+			Message: err.Error(),
 		})
 		return
 	}
@@ -107,7 +133,32 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		return
 	}
 
-	filter := h.toDomainFilter(filterDTO)
+	// フィルターのバリデーション
+	if err := h.validator.Validate(&filterDTO); err != nil {
+		h.logger.WithError(err).Error("フィルターバリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Filter validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// フィルター値のサニタイゼーション
+	sanitizedFilter := MemoFilterDTO{
+		Category: h.validator.SanitizeInput(filterDTO.Category),
+		Status:   filterDTO.Status,   // 列挙値なのでサニタイズ不要
+		Priority: filterDTO.Priority, // 列挙値なのでサニタイズ不要
+		Search:   h.validator.SanitizeInput(filterDTO.Search),
+		Tags:     h.validator.SanitizeInput(filterDTO.Tags),
+		Page:     filterDTO.Page,
+		Limit:    filterDTO.Limit,
+	}
+
+	filter := h.toDomainFilter(sanitizedFilter)
 
 	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), filter)
 	if err != nil {
@@ -139,11 +190,12 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 // UpdateMemo updates an existing memo
 func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
 			Error:   "Invalid memo ID",
-			Message: "Memo ID must be a number",
+			Message: err.Error(),
 		})
 		return
 	}
@@ -158,13 +210,49 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		return
 	}
 
+	// カスタムバリデーション実行
+	if err := h.validator.Validate(&req); err != nil {
+		h.logger.WithError(err).Error("バリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// サニタイゼーション処理
+	sanitizedReq := UpdateMemoRequestDTO{
+		Priority: req.Priority, // 列挙値なのでサニタイズ不要
+		Status:   req.Status,   // 列挙値なのでサニタイズ不要
+	}
+
+	if req.Title != nil {
+		sanitized := h.validator.SanitizeInput(*req.Title)
+		sanitizedReq.Title = &sanitized
+	}
+	if req.Content != nil {
+		sanitized := h.validator.SanitizeInput(*req.Content)
+		sanitizedReq.Content = &sanitized
+	}
+	if req.Category != nil {
+		sanitized := h.validator.SanitizeInput(*req.Category)
+		sanitizedReq.Category = &sanitized
+	}
+	if len(req.Tags) > 0 {
+		sanitizedReq.Tags = h.validator.SanitizeTags(req.Tags)
+	}
+
 	usecaseReq := usecase.UpdateMemoRequest{
-		Title:    req.Title,
-		Content:  req.Content,
-		Category: req.Category,
-		Tags:     req.Tags,
-		Priority: req.Priority,
-		Status:   req.Status,
+		Title:    sanitizedReq.Title,
+		Content:  sanitizedReq.Content,
+		Category: sanitizedReq.Category,
+		Tags:     sanitizedReq.Tags,
+		Priority: sanitizedReq.Priority,
+		Status:   sanitizedReq.Status,
 	}
 
 	memo, err := h.memoUsecase.UpdateMemo(c.Request.Context(), id, usecaseReq)
@@ -193,11 +281,12 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 // DeleteMemo deletes a memo
 func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
 			Error:   "Invalid memo ID",
-			Message: "Memo ID must be a number",
+			Message: err.Error(),
 		})
 		return
 	}
@@ -224,11 +313,12 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 // ArchiveMemo archives a memo
 func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
 			Error:   "Invalid memo ID",
-			Message: "Memo ID must be a number",
+			Message: err.Error(),
 		})
 		return
 	}
@@ -255,11 +345,12 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 // RestoreMemo restores an archived memo
 func (h *MemoHandler) RestoreMemo(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
 			Error:   "Invalid memo ID",
-			Message: "Memo ID must be a number",
+			Message: err.Error(),
 		})
 		return
 	}
@@ -294,8 +385,33 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 		return
 	}
 
-	query := filterDTO.Search
-	filter := h.toDomainFilter(filterDTO)
+	// フィルターのバリデーション
+	if err := h.validator.Validate(&filterDTO); err != nil {
+		h.logger.WithError(err).Error("検索フィルターバリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Filter validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// サニタイゼーション
+	sanitizedFilter := MemoFilterDTO{
+		Category: h.validator.SanitizeInput(filterDTO.Category),
+		Status:   filterDTO.Status,
+		Priority: filterDTO.Priority,
+		Search:   h.validator.SanitizeInput(filterDTO.Search),
+		Tags:     h.validator.SanitizeInput(filterDTO.Tags),
+		Page:     filterDTO.Page,
+		Limit:    filterDTO.Limit,
+	}
+
+	query := sanitizedFilter.Search
+	filter := h.toDomainFilter(sanitizedFilter)
 
 	memos, total, err := h.memoUsecase.SearchMemos(c.Request.Context(), query, filter)
 	if err != nil {

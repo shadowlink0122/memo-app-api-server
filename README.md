@@ -446,325 +446,42 @@ make swagger-docs
 
 詳細な使用方法については [`docs/SWAGGER_INTEGRATION.md`](docs/SWAGGER_INTEGRATION.md) をご覧ください。
 
-## API使用例
+## バリデーションとセキュリティ
 
-### 1. メモの作成
+このプロジェクトは包括的なバリデーションとセキュリティ機能を実装しています。
 
-```bash
-curl -X POST http://localhost:8080/api/memos \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "重要なタスク",
-    "content": "明日までにプレゼン資料を作成する",
-    "category": "仕事",
-    "tags": ["プレゼン", "重要"],
-    "priority": "high"
-  }'
-```
+### 多層バリデーション戦略
 
-### 2. メモ一覧の取得
+1. **HTTP層**: Ginのbindingタグによる基本的な構造・型チェック
+2. **アプリケーション層**: カスタムバリデーターによる詳細なルール検証
+3. **データベース層**: CHECK制約、NOT NULL制約による最終防衛線
 
-```bash
-# 全メモ取得
-curl http://localhost:8080/api/memos
+### セキュリティ対策
 
-# フィルタリング付き取得
-curl "http://localhost:8080/api/memos?category=仕事&status=active&page=1&limit=10"
-```
+- **SQLインジェクション対策**: パラメータ化クエリ + カスタムサニタイザー
+- **XSS対策**: HTMLエスケープ処理
+- **入力サニタイゼーション**: 危険な文字列パターンの検出と除去
+- **ID検証**: 数値以外の文字列や異常に長いIDの拒否
 
-### 3. 特定のメモ取得
+### バリデーション機能
 
 ```bash
-curl http://localhost:8080/api/memos/1
+# バリデーションテストの実行
+make docker-test-validation
+
+# セキュリティテストの実行
+make docker-test-security
+
+# 全てのテストを実行
+make docker-test
 ```
 
-### 4. メモの更新
-
-```bash
-curl -X PUT http://localhost:8080/api/memos/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "更新されたタスク",
-    "priority": "medium"
-  }'
-```
-
-### 5. メモの検索
-
-```bash
-curl "http://localhost:8080/api/memos/search?q=プレゼン&page=1&limit=5"
-```
-
-### 6. メモのアーカイブ
-
-```bash
-curl -X PATCH http://localhost:8080/api/memos/1/archive
-```
-
-### 7. メモの削除
-
-```bash
-curl -X DELETE http://localhost:8080/api/memos/1
-```
-
-### レスポンス例
-
-#### メモ作成成功時
-
-```json
-{
-  "id": 1,
-  "title": "重要なタスク",
-  "content": "明日までにプレゼン資料を作成する",
-  "category": "仕事",
-  "tags": "[\"プレゼン\", \"重要\"]",
-  "priority": "high",
-  "status": "active",
-  "created_at": "2025-07-21T10:00:00+09:00",
-  "updated_at": "2025-07-21T10:00:00+09:00",
-  "completed_at": null
-}
-```
-
-#### メモ一覧取得時
-
-```json
-{
-  "memos": [
-    {
-      "id": 1,
-      "title": "重要なタスク",
-      "content": "明日までにプレゼン資料を作成する",
-      "category": "仕事",
-      "tags": "[\"プレゼン\", \"重要\"]",
-      "priority": "high",
-      "status": "active",
-      "created_at": "2025-07-21T10:00:00+09:00",
-      "updated_at": "2025-07-21T10:00:00+09:00"
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "limit": 10,
-  "total_pages": 1
-}
-```
-
-```bash
-# Hello World
-curl http://localhost:8080/
-
-# ヘルスチェック
-curl http://localhost:8080/health
-
-# 認証が必要なエンドポイント
-curl http://localhost:8080/api/protected
-```
-
-### データベースマイグレーション
-
-このプロジェクトでは、`migrations/` ディレクトリを使用したマイグレーション管理を採用しています。
-
-#### マイグレーション構成
-
-```
-migrations/
-├── 000_create_test_db.sql       # テスト用DB作成
-├── 001_initial_schema.up.sql    # 初期スキーマ作成（Up）
-├── 001_initial_schema.down.sql  # 初期スキーマ削除（Down）
-├── 002_sample_data.up.sql       # サンプルデータ投入（Up）
-├── 002_sample_data.down.sql     # サンプルデータ削除（Down）
-└── ...                          # 今後のマイグレーション
-```
-
-#### マイグレーション実行
-
-専用のマイグレーションスクリプト（`scripts/migrate-database.sh`）を使用してマイグレーションを実行します：
-
-##### 基本的な使用方法
-
-```bash
-# メインデータベースのマイグレーション
-make migrate
-
-# テスト用データベースのマイグレーション
-make migrate-test
-
-# 両方のデータベースのマイグレーション
-make migrate-all
-
-# マイグレーションファイルの確認（実行なし）
-make migrate-dry-run
-```
-
-##### Docker環境でのマイグレーション
-
-```bash
-# Docker環境のメインデータベース
-make docker-migrate
-
-# Docker環境のテスト用データベース
-make docker-migrate-test
-
-# Docker環境の両方のデータベース
-make docker-migrate-all
-```
-
-##### 手動実行
-
-マイグレーションスクリプトを直接使用することも可能です：
-
-```bash
-# 基本的な実行
-./scripts/migrate-database.sh --both --verbose
-
-# カスタム接続設定
-./scripts/migrate-database.sh \
-  --host localhost \
-  --port 5432 \
-  --username memo_user \
-  --database memo_db \
-  --both \
-  --verbose
-
-# DATABASE_URL を使用
-DATABASE_URL="postgres://user:pass@host:5432/dbname" \
-./scripts/migrate-database.sh --both
-
-# ドライラン（実行なし）
-./scripts/migrate-database.sh --dry-run --verbose
-```
-
-#### 新しいマイグレーションの追加
-
-新しいマイグレーションファイルを作成する場合：
-
-1. **命名規則**: `003_description.up.sql` と `003_description.down.sql`
-2. **Upマイグレーション**: スキーマ変更の適用
-3. **Downマイグレーション**: スキーマ変更の取り消し
-
-例：
-
-```bash
-# 新しいマイグレーションファイル作成
-migrations/003_add_user_profile.up.sql    # 変更適用
-migrations/003_add_user_profile.down.sql  # 変更取り消し
-```
-
-マイグレーションスクリプトは自動的に `migrations/` ディレクトリ内の `*.sql` ファイルを名前順に実行します。
-
-#### マイグレーション管理のベストプラクティス
-
-1. **Down マイグレーション**: 必ず作成して、変更を可逆にする
-2. **テスト**: 本番適用前に開発・テスト環境で検証
-3. **バックアップ**: 重要なマイグレーション前はデータベースをバックアップ
-4. **原子性**: 1つのマイグレーションファイルで関連する変更をまとめる
-
-#### CI/CDでのコード品質管理
-
-CI/CDパイプラインでは以下のコード品質チェックを実行します：
-
-##### リント処理
-- **Docker環境**: コンテナ内で`make lint-ci`を実行
-- **フォールバック**: Docker失敗時はホスト環境で標準Goツールを使用
-- **チェック内容**:
-  - `go fmt`: コードフォーマットの確認
-  - `go vet`: 静的解析（潜在的バグの検出）
-  - `go mod tidy`: 依存関係の整合性確認
-
-##### ローカル開発でのリント実行
-
-```bash
-# 軽量なCI用リント（推奨）
-make lint-ci
-
-# golangci-lint使用（より詳細、要インストール）
-make lint
-
-# フォーマットのみ実行
-make fmt
-
-# フォーマットチェックのみ
-make fmt-check
-```
-
-golangci-lintがインストールされていない場合、`make lint`は自動的に`go vet`にフォールバックします。
-
-#### PR管理とマージワークフロー
-
-このプロジェクトには包括的なCI/CDパイプラインが実装されており、以下のチェックが自動実行されます。GitHubのbranch protection rulesを設定することで、これらのチェックが成功した場合のみPRのマージが可能になります。
-
-##### PRの作成と管理
-
-```bash
-# 開発環境のセットアップ（初回のみ）
-make init
-
-# PR作成（Draftとして作成）
-make pr-create
-
-# Ready for reviewにする
-make pr-ready
-
-# PRの状態確認
-make pr-check
-
-# PRの詳細情報確認
-make pr-info
-```
-
-##### マージの実行
-
-CIチェックが全て成功した場合、以下のコマンドでマージできます：
-
-```bash
-# Squash merge（推奨）
-make pr-merge
-
-# Merge commit
-make pr-merge-commit
-
-# マージ前の最終確認
-make pr-status
-```
-
-##### CI/CDチェック項目
-
-以下のチェックがPRごとに自動実行されます：
-
-- ✅ **Build**: アプリケーションのビルド確認
-- ✅ **Tests**: 単体・統合テストの実行
-- ✅ **Lint**: コード品質とフォーマットチェック
-- ✅ **Security Scan**: セキュリティ脆弱性のスキャン
-- ✅ **E2E Tests**: エンドツーエンドテストの実行
-
-**注意**: これらのチェックを必須にするには、GitHubリポジトリでbranch protection rulesの設定が必要です。設定すると、全てのチェックが成功した場合のみマージボタンが有効になります。
-
-##### Branch Protection Rulesの設定
-
-リポジトリ管理者がGitHubで以下の設定を行うことを推奨します：
-
-1. リポジトリの `Settings` > `Branches` > `Add rule` を選択
-2. Branch name pattern: `main` (または `master`)
-3. 以下のオプションを有効化：
-   - ☑️ `Require status checks to pass before merging`
-   - ☑️ `Require branches to be up to date before merging`
-   - Required status checks: `Build`, `Tests`, `Lint`, `Security Scan`, `E2E Tests`
-
-これにより、すべてのCI/CDチェックが成功するまでマージボタンが無効化されます。
-
-##### トラブルシューティング
-
-```bash
-# CIエラーの確認
-make pr-check
-
-# セキュリティスキャンのローカル実行
-make security
-
-# 全テストの実行
-make test
-
-# フォーマット修正
-make fmt
-```
+### 対応するバリデーションルール
+
+- **必須フィールド**: `required` タグ
+- **長さ制限**: `max`, `min` タグ
+- **列挙値**: `oneof` タグ
+- **安全な文字**: `safe_text`, `safe_category`, `safe_tag` カスタムルール
+- **SQLインジェクション検出**: `no_sql_injection` カスタムルール
+
+詳細については [`docs/VALIDATION_BEST_PRACTICES.md`](docs/VALIDATION_BEST_PRACTICES.md) をご覧ください。

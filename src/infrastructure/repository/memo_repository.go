@@ -9,21 +9,24 @@ import (
 
 	"memo-app/src/database"
 	"memo-app/src/domain"
+	"memo-app/src/security"
 
 	"github.com/sirupsen/logrus"
 )
 
 // MemoRepository implements domain.MemoRepository
 type MemoRepository struct {
-	db     *database.DB
-	logger *logrus.Logger
+	db           *database.DB
+	logger       *logrus.Logger
+	sqlSanitizer *security.SQLSanitizer
 }
 
 // NewMemoRepository creates a new memo repository
 func NewMemoRepository(db *database.DB, logger *logrus.Logger) domain.MemoRepository {
 	return &MemoRepository{
-		db:     db,
-		logger: logger,
+		db:           db,
+		logger:       logger,
+		sqlSanitizer: security.NewSQLSanitizer(),
 	}
 }
 
@@ -138,14 +141,18 @@ func (r *MemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]
 
 	if filter.Search != "" {
 		baseQuery += fmt.Sprintf(" AND (title ILIKE $%d OR content ILIKE $%d)", argIndex, argIndex)
-		args = append(args, "%"+filter.Search+"%")
+		// LIKE演算子用のエスケープ処理
+		escapedSearch := r.sqlSanitizer.EscapeForLike(filter.Search)
+		args = append(args, "%"+escapedSearch+"%")
 		argIndex++
 	}
 
 	if len(filter.Tags) > 0 {
 		for _, tag := range filter.Tags {
 			baseQuery += fmt.Sprintf(" AND tags::text ILIKE $%d", argIndex)
-			args = append(args, "%"+tag+"%")
+			// タグもエスケープ処理
+			escapedTag := r.sqlSanitizer.EscapeForLike(tag)
+			args = append(args, "%"+escapedTag+"%")
 			argIndex++
 		}
 	}
@@ -335,7 +342,23 @@ func (r *MemoRepository) Restore(ctx context.Context, id int) error {
 
 // Search searches memos by query
 func (r *MemoRepository) Search(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	// 検索クエリをフィルターに設定
-	filter.Search = query
+	// 検索クエリのバリデーションとサニタイゼーション
+	if err := r.sqlSanitizer.ValidateSearchQuery(query); err != nil {
+		r.logger.WithError(err).WithField("query", query).Error("危険な検索クエリが検出されました")
+		return nil, 0, fmt.Errorf("invalid search query: %w", err)
+	}
+
+	// 検索クエリをサニタイズ
+	sanitizedQuery := r.sqlSanitizer.SanitizeSearchQuery(query)
+
+	// ページネーションパラメータのバリデーション
+	offset := (filter.Page - 1) * filter.Limit
+	if err := r.sqlSanitizer.ValidateLimitOffset(filter.Limit, offset); err != nil {
+		r.logger.WithError(err).Error("無効なページネーションパラメータ")
+		return nil, 0, fmt.Errorf("invalid pagination: %w", err)
+	}
+
+	// サニタイズされた検索クエリをフィルターに設定
+	filter.Search = sanitizedQuery
 	return r.List(ctx, filter)
 }

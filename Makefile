@@ -1,6 +1,6 @@
 # Makefile for memo-app API server (ローカルビルド + Docker実行)
 
-.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info swagger-serve swagger-validate swagger-docs
+.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info swagger-serve swagger-validate swagger-docs docker-test-validation docker-test-security test-validation-internal test-security-internal
 
 # デフォルトターゲット（ローカルビルド + Docker環境での起動）
 all: build docker-up
@@ -239,6 +239,20 @@ docker-test-e2e:
 	docker compose exec app-dev make test-e2e-internal
 	docker compose --profile dev down app-dev
 
+# Docker環境でバリデーションテストを実行
+docker-test-validation:
+	@echo "開発用コンテナでバリデーションテストを実行します..."
+	docker compose --profile dev up -d app-dev
+	docker compose exec app-dev make test-validation-internal
+	docker compose --profile dev down app-dev
+
+# Docker環境でセキュリティテストを実行
+docker-test-security:
+	@echo "開発用コンテナでセキュリティテストを実行します..."
+	docker compose --profile dev up -d app-dev
+	docker compose exec app-dev make test-security-internal
+	docker compose --profile dev down app-dev
+
 # Docker: 本番環境を起動
 docker-prod-up:
 	docker compose -f docker-compose.prod.yml up -d
@@ -296,6 +310,16 @@ test-database-internal:
 test-e2e-internal:
 	@echo "E2Eテストを実行します"
 	go test ./test/e2e -v
+
+# バリデーションテストを実行（コンテナ内でのみ実行）
+test-validation-internal:
+	@echo "バリデーションテストを実行します"
+	go test ./test/validator -v
+
+# セキュリティテストを実行（コンテナ内でのみ実行）
+test-security-internal:
+	@echo "セキュリティテストを実行します"
+	go test ./test/security -v
 
 # テストカバレッジを生成（コンテナ内でのみ実行）
 test-coverage-internal:
