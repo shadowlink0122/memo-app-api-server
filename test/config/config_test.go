@@ -31,7 +31,7 @@ func TestLoadConfig(t *testing.T) {
 	t.Run("デフォルト値でのconfig読み込み", func(t *testing.T) {
 		cfg := config.LoadConfig()
 
-		assert.Equal(t, "8080", cfg.Server.Port)
+		assert.Equal(t, "8000", cfg.Server.Port)
 		assert.Equal(t, "info", cfg.Log.Level)
 		assert.Equal(t, "logs", cfg.Log.Directory)
 		// Docker環境では環境変数の設定によってUploadEnabledが変わる可能性があるため、値をチェックしない

@@ -33,7 +33,7 @@ make swagger-docs
 # Swagger UIでAPIドキュメントを表示
 make swagger-serve
 
-# http://localhost:8081/docs でアクセス可能
+# http://localhost:7000/docs でアクセス可能
 # 終了するには Ctrl+C を押してください
 ```
 
@@ -82,7 +82,7 @@ api/
    ```
 
 4. **ドキュメントの確認**
-   http://localhost:8081/docs でUI表示を確認
+   http://localhost:7000/docs でUI表示を確認
 
 ## 🏗️ 実装との連携
 

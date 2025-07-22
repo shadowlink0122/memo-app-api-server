@@ -27,7 +27,7 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8000
     description: 開発環境サーバー
   - url: https://your-domain.com
     description: 本番環境サーバー

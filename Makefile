@@ -610,9 +610,9 @@ pr-info:
 # Swagger UIでAPIドキュメントを表示
 swagger-serve:
 	@echo "🌐 Swagger UIでAPIドキュメントを表示します..."
-	@echo "   http://localhost:8081/docs でアクセスできます"
+	@echo "   http://localhost:7000/docs でアクセスできます"
 	@echo "   終了するには Ctrl+C を押してください"
-	@docker run --rm -p 8081:8080 \
+	@docker run --rm -p 7000:8080 \
 		-v $$(pwd)/api:/app \
 		-e SWAGGER_JSON=/app/swagger.yaml \
 		swaggerapi/swagger-ui
@@ -642,7 +642,7 @@ swagger-docs:
 	@echo "  api/swagger.yaml       - API仕様書（OpenAPI 3.0.3形式）"
 	@echo ""
 	@echo "🌐 アクセス先:"
-	@echo "  http://localhost:8081/docs  - Swagger UI（swagger-serve実行時）"
+	@echo "  http://localhost:7000/docs  - Swagger UI（swagger-serve実行時）"
 
 # ヘルプ
 help:

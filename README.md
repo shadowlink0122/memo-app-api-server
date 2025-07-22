@@ -206,7 +206,7 @@ cp .env.example .env
 
 ```bash
 # サーバー設定
-SERVER_PORT=8080
+SERVER_PORT=8000
 
 # ログ設定
 LOG_LEVEL=info
@@ -247,7 +247,7 @@ docker compose up -d db minio
 docker compose up -d
 ```
 
-サーバーは `http://localhost:8080` で起動します。
+サーバーは `http://localhost:8000` で起動します。
 
 #### 3. サービス管理
 
@@ -320,7 +320,7 @@ docker compose -f docker-compose.prod.yml down
 - **MinIO管理画面**: http://localhost:9001（開発環境のみ）
   - ユーザー名: `minioadmin`
   - パスワード: `minioadmin`
-- **API サーバー**: http://localhost:8080（開発環境）/ http://your-domain.com（本番環境）
+- **API サーバー**: http://localhost:8000（開発環境）/ http://your-domain.com（本番環境）
 
 ## テスト
 
@@ -429,7 +429,7 @@ docker compose exec app make build             # アプリケーションをビ�
 ### API仕様書とドキュメント
 
 - **API仕様書**: `api/swagger.yaml` - OpenAPI 3.0.3形式でAPI仕様を定義
-- **インタラクティブドキュメント**: `make swagger-serve` でSwagger UIを起動（http://localhost:8081/docs）
+- **インタラクティブドキュメント**: `make swagger-serve` でSwagger UIを起動（http://localhost:7000/docs）
 
 ### 利用可能なコマンド
 

@@ -64,7 +64,7 @@ jobs:
           ENV DOCKER_CONTAINER=true
           ENV GIN_MODE=test
           RUN mkdir -p /app/logs
-          EXPOSE 8080
+          EXPOSE 8000
           CMD ["tail", "-f", "/dev/null"]
           
           FROM golang:1.24.5-alpine AS builder
@@ -79,7 +79,7 @@ jobs:
           COPY --from=builder /app/memo-app .
           RUN chmod +x ./memo-app
           ENV DOCKER_CONTAINER=true
-          EXPOSE 8080
+          EXPOSE 8000
           CMD ["./memo-app"]
         target: test
         push: false
@@ -380,7 +380,7 @@ jobs:
         # アプリケーションが利用可能になるまで待機
         echo "アプリケーションの起動確認中..."
         for i in {1..60}; do
-          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+          if curl -f http://localhost:8000/health > /dev/null 2>&1; then
             echo "Application ready"
             break
           fi
@@ -402,7 +402,7 @@ jobs:
         docker compose -f docker-compose.ci.yml logs db
         
         echo "=== ヘルスチェック結果 ==="
-        curl -v http://localhost:8080/health || echo "Health check failed"
+        curl -v http://localhost:8000/health || echo "Health check failed"
 
     - name: Run E2E tests
       run: |

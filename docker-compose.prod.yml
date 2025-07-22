@@ -11,9 +11,10 @@ services:
     container_name: memo-app-prod
     restart: always
     ports:
-      - "80:8080"
+      - "80:8000"
     environment:
       - GIN_MODE=release
+      - SERVER_PORT=8000
       - DB_HOST=${DB_HOST:-localhost} # 外部RDSのエンドポイント
       - DB_PORT=${DB_PORT:-5432}
       - DB_USER=${DB_USER:-memo_user}
@@ -41,7 +42,7 @@ services:
           cpus: '0.2'
           memory: 128M
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
