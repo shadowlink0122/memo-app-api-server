@@ -16,16 +16,16 @@ import (
 
 // MemoRepository implements domain.MemoRepository
 type MemoRepository struct {
-	db          *database.DB
-	logger      *logrus.Logger
+	db           *database.DB
+	logger       *logrus.Logger
 	sqlSanitizer *security.SQLSanitizer
 }
 
 // NewMemoRepository creates a new memo repository
 func NewMemoRepository(db *database.DB, logger *logrus.Logger) domain.MemoRepository {
 	return &MemoRepository{
-		db:          db,
-		logger:      logger,
+		db:           db,
+		logger:       logger,
 		sqlSanitizer: security.NewSQLSanitizer(),
 	}
 }
@@ -350,7 +350,7 @@ func (r *MemoRepository) Search(ctx context.Context, query string, filter domain
 
 	// 検索クエリをサニタイズ
 	sanitizedQuery := r.sqlSanitizer.SanitizeSearchQuery(query)
-	
+
 	// ページネーションパラメータのバリデーション
 	offset := (filter.Page - 1) * filter.Limit
 	if err := r.sqlSanitizer.ValidateLimitOffset(filter.Limit, offset); err != nil {

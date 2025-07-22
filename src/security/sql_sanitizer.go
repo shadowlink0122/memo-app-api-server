@@ -56,18 +56,18 @@ func (s *SQLSanitizer) SanitizeSearchQuery(query string) string {
 
 	// 基本的なサニタイゼーション
 	sanitized := strings.TrimSpace(query)
-	
+
 	// 特殊文字の除去（検索クエリとして安全な文字のみ許可）
 	// アルファベット、数字、ひらがな、カタカナ、漢字、空白のみ許可
 	safeChars := regexp.MustCompile(`[^a-zA-Z0-9\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]`)
 	sanitized = safeChars.ReplaceAllString(sanitized, "")
-	
+
 	// 連続する空白を単一の空白に変換
 	sanitized = regexp.MustCompile(`\s+`).ReplaceAllString(sanitized, " ")
-	
+
 	// 前後の空白を除去
 	sanitized = strings.TrimSpace(sanitized)
-	
+
 	return sanitized
 }
 
@@ -132,8 +132,8 @@ func (s *SQLSanitizer) EscapeForLike(pattern string) string {
 	// PostgreSQLのLIKE演算子用にエスケープ
 	replacer := strings.NewReplacer(
 		"\\", "\\\\", // バックスラッシュ
-		"%", "\\%",   // パーセント
-		"_", "\\_",   // アンダースコア
+		"%", "\\%", // パーセント
+		"_", "\\_", // アンダースコア
 	)
 	return replacer.Replace(pattern)
 }

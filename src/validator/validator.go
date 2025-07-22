@@ -12,9 +12,9 @@ import (
 
 // CustomValidator は拡張バリデーション機能を提供
 type CustomValidator struct {
-	validator        *validator.Validate
-	categoryPattern  *regexp.Regexp
-	tagPattern      *regexp.Regexp
+	validator           *validator.Validate
+	categoryPattern     *regexp.Regexp
+	tagPattern          *regexp.Regexp
 	sqlInjectionPattern *regexp.Regexp
 }
 
@@ -39,9 +39,9 @@ func (ve ValidationErrors) Error() string {
 func NewCustomValidator() *CustomValidator {
 	v := validator.New()
 	cv := &CustomValidator{
-		validator:       v,
-		categoryPattern: regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // 英数字、ひらがな、カタカナ、漢字
-		tagPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}\s]+$`), // タグは空白も許可
+		validator:           v,
+		categoryPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`),   // 英数字、ひらがな、カタカナ、漢字
+		tagPattern:          regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}\s]+$`), // タグは空白も許可
 		sqlInjectionPattern: regexp.MustCompile(`(?i)(\bunion\s+select\b|\bselect\s+.*\bfrom\b|\binsert\s+into\b|\bupdate\s+.*\bset\b|\bdelete\s+from\b|\bdrop\s+table\b|\bcreate\s+table\b|\balter\s+table\b|\bexec\s*\(|<script|</script>|onload\s*=|onerror\s*=|--|/\*|\*/|\|\||(\bor\b|\band\b)\s*(1\s*=\s*1|true|\d+\s*=\s*\d+))`),
 	}
 
@@ -58,19 +58,19 @@ func NewCustomValidator() *CustomValidator {
 func (cv *CustomValidator) Validate(s interface{}) error {
 	if err := cv.validator.Struct(s); err != nil {
 		var validationErrors []ValidationError
-		
+
 		for _, err := range err.(validator.ValidationErrors) {
 			ve := ValidationError{
 				Field: err.Field(),
 				Tag:   err.Tag(),
 				Value: err.Value(),
 			}
-			
+
 			// カスタムエラーメッセージを生成
 			ve.Message = cv.generateErrorMessage(err)
 			validationErrors = append(validationErrors, ve)
 		}
-		
+
 		return ValidationErrors{Errors: validationErrors}
 	}
 	return nil
@@ -80,13 +80,13 @@ func (cv *CustomValidator) Validate(s interface{}) error {
 func (cv *CustomValidator) SanitizeInput(input string) string {
 	// HTMLエスケープ
 	sanitized := html.EscapeString(input)
-	
+
 	// 前後の空白を除去
 	sanitized = strings.TrimSpace(sanitized)
-	
+
 	// 連続する空白を単一の空白に変換
 	sanitized = regexp.MustCompile(`\s+`).ReplaceAllString(sanitized, " ")
-	
+
 	return sanitized
 }
 
@@ -102,12 +102,12 @@ func (cv *CustomValidator) SanitizeTags(tags []string) []string {
 	for _, tag := range tags {
 		// サニタイズ
 		sanitized := cv.SanitizeInput(tag)
-		
+
 		// 長さチェック
 		if utf8.RuneCountInString(sanitized) > 30 {
 			continue // 長すぎるタグは除外
 		}
-		
+
 		// 重複チェック
 		if sanitized != "" && !seen[sanitized] && cv.tagPattern.MatchString(sanitized) {
 			seen[sanitized] = true
@@ -122,19 +122,19 @@ func (cv *CustomValidator) SanitizeTags(tags []string) []string {
 
 func (cv *CustomValidator) validateSafeText(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
-	
+
 	// SQLインジェクションパターンをチェック
 	if cv.sqlInjectionPattern.MatchString(value) {
 		return false
 	}
-	
+
 	// 基本的な文字チェック（制御文字の排除）
 	for _, r := range value {
 		if r < 32 && r != 9 && r != 10 && r != 13 { // タブ、改行、復帰以外の制御文字を拒否
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -143,7 +143,7 @@ func (cv *CustomValidator) validateSafeCategory(fl validator.FieldLevel) bool {
 	if value == "" {
 		return true // 任意フィールド
 	}
-	
+
 	return cv.categoryPattern.MatchString(value) && !cv.sqlInjectionPattern.MatchString(value)
 }
 
@@ -152,7 +152,7 @@ func (cv *CustomValidator) validateSafeTag(fl validator.FieldLevel) bool {
 	if value == "" {
 		return true
 	}
-	
+
 	return cv.tagPattern.MatchString(value) && !cv.sqlInjectionPattern.MatchString(value)
 }
 
@@ -195,22 +195,22 @@ func (cv *CustomValidator) ValidateID(idStr string) (int, error) {
 	if !regexp.MustCompile(`^\d+$`).MatchString(idStr) {
 		return 0, fmt.Errorf("ID must be a positive integer")
 	}
-	
+
 	// 長さチェック（異常に長いIDを防ぐ）
 	if len(idStr) > 10 {
 		return 0, fmt.Errorf("ID is too long")
 	}
-	
+
 	// パースを試行
 	var id int
 	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
 		return 0, fmt.Errorf("invalid ID format")
 	}
-	
+
 	// 正の値チェック
 	if id <= 0 {
 		return 0, fmt.Errorf("ID must be positive")
 	}
-	
+
 	return id, nil
 }

@@ -48,7 +48,7 @@ func TestCustomValidator_Validate(t *testing.T) {
 		for _, testCase := range maliciousCases {
 			err := v.Validate(&testCase)
 			assert.Error(t, err, "悪意のある入力を検出できませんでした: %+v", testCase)
-			
+
 			if validationErrors, ok := err.(validator.ValidationErrors); ok {
 				assert.NotEmpty(t, validationErrors.Errors)
 			}
@@ -208,7 +208,7 @@ func TestCustomValidator_ValidateID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := v.ValidateID(tt.input)
-			
+
 			if tt.shouldErr {
 				assert.Error(t, err)
 			} else {

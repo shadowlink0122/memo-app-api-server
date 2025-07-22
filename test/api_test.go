@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,11 +10,16 @@ import (
 	"os"
 	"testing"
 
+	"memo-app/src/domain"
+	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,13 +44,70 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func setupTestRouter() *gin.Engine {
+// MockMemoUsecase for API testing
+type MockMemoUsecase struct {
+	mock.Mock
+}
+
+func (m *MockMemoUsecase) CreateMemo(ctx context.Context, req usecase.CreateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
+}
+
+func (m *MockMemoUsecase) GetMemo(ctx context.Context, id int) (*domain.Memo, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
+}
+
+func (m *MockMemoUsecase) ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
+}
+
+func (m *MockMemoUsecase) UpdateMemo(ctx context.Context, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, id, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
+}
+
+func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, id int) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, id int) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, id int) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMemoUsecase) SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, query, filter)
+	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
+}
+
+func setupTestRouter(mockUsecase *MockMemoUsecase) *gin.Engine {
 	r := gin.New()
 
 	// テスト用ミドルウェアを適用
 	r.Use(middleware.LoggerMiddleware())
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.RateLimitMiddleware())
+
+	logger := logrus.New()
+	logger.SetLevel(logrus.WarnLevel) // テスト時はWARN以上のみ
 
 	// パブリックルート
 	public := r.Group("/")
@@ -68,7 +132,7 @@ func setupTestRouter() *gin.Engine {
 		})
 	}
 
-	// プライベートルート（実際のサーバーと同じ構成）
+	// プライベートルート（認証が必要）
 	private := r.Group("/api")
 	private.Use(middleware.AuthMiddleware())
 	{
@@ -79,20 +143,34 @@ func setupTestRouter() *gin.Engine {
 			})
 		})
 
-		// メモAPIエンドポイント（テスト用のスタブ）
-		private.GET("/memos", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
-				"memos": []gin.H{},
-				"total": 0,
+		// 実際のメモAPIエンドポイント（Mockを使用）
+		if mockUsecase != nil {
+			memoHandler := handler.NewMemoHandler(mockUsecase, logger)
+			memos := private.Group("/memos")
+			{
+				memos.POST("", memoHandler.CreateMemo)
+				memos.GET("", memoHandler.ListMemos)
+				memos.GET("/:id", memoHandler.GetMemo)
+				memos.PUT("/:id", memoHandler.UpdateMemo)
+				memos.DELETE("/:id", memoHandler.DeleteMemo)
+				memos.GET("/search", memoHandler.SearchMemos)
+			}
+		} else {
+			// Mock無しの場合のスタブエンドポイント
+			private.GET("/memos", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{
+					"memos": []gin.H{},
+					"total": 0,
+				})
 			})
-		})
 
-		private.POST("/memos", func(c *gin.Context) {
-			c.JSON(http.StatusCreated, gin.H{
-				"id":      1,
-				"message": "メモが作成されました",
+			private.POST("/memos", func(c *gin.Context) {
+				c.JSON(http.StatusCreated, gin.H{
+					"id":      1,
+					"message": "メモが作成されました",
+				})
 			})
-		})
+		}
 	}
 
 	return r
@@ -101,7 +179,7 @@ func setupTestRouter() *gin.Engine {
 // === API エンドポイントのテスト ===
 
 func BenchmarkHealthEndpoint(b *testing.B) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
@@ -111,7 +189,7 @@ func BenchmarkHealthEndpoint(b *testing.B) {
 }
 
 func BenchmarkRootEndpoint(b *testing.B) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
@@ -123,7 +201,7 @@ func BenchmarkRootEndpoint(b *testing.B) {
 // === 統合テスト ===
 
 func TestFullRequestFlow(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	// 1. ヘルスチェック
 	w := httptest.NewRecorder()
@@ -152,7 +230,7 @@ func TestFullRequestFlow(t *testing.T) {
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/health", nil)
@@ -169,7 +247,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestRootEndpoint(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/", nil)
@@ -187,7 +265,7 @@ func TestRootEndpoint(t *testing.T) {
 }
 
 func TestHelloEndpoint(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/hello", nil)
@@ -198,7 +276,7 @@ func TestHelloEndpoint(t *testing.T) {
 }
 
 func TestProtectedEndpoint(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	// 認証なしでアクセス - 401 Unauthorized が期待される
 	t.Run("Without Authentication", func(t *testing.T) {
@@ -252,7 +330,7 @@ func TestProtectedEndpoint(t *testing.T) {
 // === CORS テスト ===
 
 func TestCORSHeaders(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/", nil)
@@ -265,7 +343,7 @@ func TestCORSHeaders(t *testing.T) {
 }
 
 func TestCORSPreflight(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("OPTIONS", "/", nil)
@@ -278,7 +356,7 @@ func TestCORSPreflight(t *testing.T) {
 // === エラーハンドリングテスト ===
 
 func TestNotFoundEndpoint(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/nonexistent", nil)
@@ -290,7 +368,7 @@ func TestNotFoundEndpoint(t *testing.T) {
 // === 認証テスト ===
 
 func TestAuthenticationRequired(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	// 認証が必要なエンドポイントの一覧
 	endpoints := []struct {
@@ -314,7 +392,7 @@ func TestAuthenticationRequired(t *testing.T) {
 }
 
 func TestInvalidAuthorizationFormat(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
 	// 無効なAuthorization形式のテスト
 	testCases := []struct {
@@ -341,9 +419,9 @@ func TestInvalidAuthorizationFormat(t *testing.T) {
 // === メモAPIテスト ===
 
 func TestMemoEndpointsWithValidAuth(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(nil)
 
-	// GET /api/memos
+	// GET /api/memos (スタブ版)
 	t.Run("List Memos with Valid Token", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/memos", nil)
@@ -360,7 +438,7 @@ func TestMemoEndpointsWithValidAuth(t *testing.T) {
 		assert.Contains(t, response, "total")
 	})
 
-	// POST /api/memos
+	// POST /api/memos (スタブ版)
 	t.Run("Create Memo with Valid Token", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("POST", "/api/memos", nil)
@@ -375,5 +453,146 @@ func TestMemoEndpointsWithValidAuth(t *testing.T) {
 
 		assert.Contains(t, response, "id")
 		assert.Contains(t, response, "message")
+	})
+}
+
+// === Mock を使った実際のメモAPIテスト ===
+
+func TestMemoAPIWithMocks(t *testing.T) {
+	mockUsecase := new(MockMemoUsecase)
+	router := setupTestRouter(mockUsecase)
+
+	t.Run("Create Memo with Mock", func(t *testing.T) {
+		// Mockの設定
+		mockUsecase.On("CreateMemo", mock.Anything, mock.AnythingOfType("usecase.CreateMemoRequest")).Return(&domain.Memo{
+			ID:       1,
+			Title:    "Test Memo",
+			Content:  "Test Content",
+			Category: "Test",
+			Priority: domain.PriorityMedium,
+			Status:   domain.StatusActive,
+		}, nil)
+
+		// リクエストボディの作成
+		requestBody := usecase.CreateMemoRequest{
+			Title:    "Test Memo",
+			Content:  "Test Content",
+			Category: "Test",
+			Priority: "medium",
+		}
+		body, _ := json.Marshal(requestBody)
+
+		// リクエストの実行
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/memos", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(w, req)
+
+		// レスポンスの検証
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response domain.Memo
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Test Memo", response.Title)
+		assert.Equal(t, "Test Content", response.Content)
+
+		mockUsecase.AssertExpectations(t)
+	})
+
+	t.Run("Get Memo with Mock", func(t *testing.T) {
+		// 新しいMockインスタンスを作成
+		mockUsecase := new(MockMemoUsecase)
+		router := setupTestRouter(mockUsecase)
+
+		// Mockの設定
+		mockUsecase.On("GetMemo", mock.Anything, 1).Return(&domain.Memo{
+			ID:      1,
+			Title:   "Test Memo",
+			Content: "Test Content",
+			Status:  domain.StatusActive,
+		}, nil)
+
+		// リクエストの実行
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/memos/1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		// レスポンスの検証
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response domain.Memo
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "Test Memo", response.Title)
+
+		mockUsecase.AssertExpectations(t)
+	})
+
+	t.Run("Get Memo Not Found", func(t *testing.T) {
+		// 新しいMockインスタンスを作成
+		mockUsecase := new(MockMemoUsecase)
+		router := setupTestRouter(mockUsecase)
+
+		// Mockの設定 - メモが見つからない場合（適切なエラータイプを使用）
+		mockUsecase.On("GetMemo", mock.Anything, 999).Return(nil, usecase.ErrMemoNotFound)
+
+		// リクエストの実行
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/memos/999", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		// レスポンスの検証 - 正しく404が返されることを期待
+		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		mockUsecase.AssertExpectations(t)
+	})
+
+	t.Run("List Memos with Mock", func(t *testing.T) {
+		// 新しいMockインスタンスを作成
+		mockUsecase := new(MockMemoUsecase)
+		router := setupTestRouter(mockUsecase)
+
+		// Mockの設定
+		mockUsecase.On("ListMemos", mock.Anything, mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+			{ID: 1, Title: "Memo 1", Content: "Content 1", Status: domain.StatusActive},
+			{ID: 2, Title: "Memo 2", Content: "Content 2", Status: domain.StatusActive},
+		}, 2, nil)
+
+		// リクエストの実行
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/memos", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		// レスポンスの検証
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		mockUsecase.AssertExpectations(t)
+	})
+
+	t.Run("Search Memos with Mock", func(t *testing.T) {
+		// 新しいMockインスタンスを作成
+		mockUsecase := new(MockMemoUsecase)
+		router := setupTestRouter(mockUsecase)
+
+		// Mockの設定 - クエリパラメータに"test"が含まれる場合
+		mockUsecase.On("SearchMemos", mock.Anything, "test", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+			{ID: 1, Title: "Test Memo", Content: "Test Content", Status: domain.StatusActive},
+		}, 1, nil)
+
+		// リクエストの実行 - 正しいパラメータ名'search'を使用
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/memos/search?search=test&limit=10&page=1", nil)
+		req.Header.Set("Authorization", "Bearer valid-token-123")
+		router.ServeHTTP(w, req)
+
+		// レスポンスの検証
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		mockUsecase.AssertExpectations(t)
 	})
 }
