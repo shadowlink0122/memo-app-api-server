@@ -1,2 +1,12 @@
 bin/*
 *.log
+
+# IDEファイル
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 一時ファイル
+.DS_Store
+Thumbs.db

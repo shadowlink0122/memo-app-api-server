@@ -1,0 +1,758 @@
+openapi: 3.0.3
+info:
+  title: Memo App API Server
+  description: |
+    Go + Ginを使用したメモアプリケーションのREST APIサーバーです。
+
+    ## 認証について
+
+    メモAPI（`/api/memos/*`）のエンドポイントには認証が必要です。
+    現在は空実装ですが、将来的にJWT認証を実装予定です。
+
+    ## 機能
+
+    - メモのCRUD操作
+    - カテゴリとタグによる分類
+    - 優先度設定（low/medium/high）
+    - ステータス管理（active/archived）
+    - 全文検索機能
+    - ページネーション対応
+
+  version: 2.0.0
+  contact:
+    name: Memo App API
+    url: https://github.com/shadowlink0122/memo-app-api-server
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: 開発環境サーバー
+  - url: https://your-domain.com
+    description: 本番環境サーバー
+
+tags:
+  - name: Health
+    description: システム状態確認用API
+  - name: Hello
+    description: 基本的なGreeting API
+  - name: Memo
+    description: メモ管理API（認証必要）
+  - name: Protected
+    description: 認証テスト用API
+
+paths:
+  # パブリックAPI
+  /:
+    get:
+      tags:
+        - Hello
+      summary: Hello World (JSON)
+      description: JSON形式でHello Worldメッセージを返します
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelloResponse"
+        "405":
+          description: メソッドが許可されていません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Hello
+      summary: メソッド不許可テスト
+      description: POSTメソッドは許可されていません（405エラー）
+      responses:
+        "405":
+          description: メソッドが許可されていません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Hello
+      summary: メソッド不許可テスト
+      description: PUTメソッドは許可されていません（405エラー）
+      responses:
+        "405":
+          description: メソッドが許可されていません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Hello
+      summary: メソッド不許可テスト
+      description: DELETEメソッドは許可されていません（405エラー）
+      responses:
+        "405":
+          description: メソッドが許可されていません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Hello
+      summary: メソッド不許可テスト
+      description: PATCHメソッドは許可されていません（405エラー）
+      responses:
+        "405":
+          description: メソッドが許可されていません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: ヘルスチェック
+      description: アプリケーションの状態を確認します
+      responses:
+        "200":
+          description: サービスが正常に動作しています
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /hello:
+    get:
+      tags:
+        - Hello
+      summary: Hello World (Text)
+      description: テキスト形式でHello Worldメッセージを返します
+      responses:
+        "200":
+          description: 成功
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Hello World!"
+
+  # 認証テスト用API
+  /api/protected:
+    get:
+      tags:
+        - Protected
+      summary: 認証テスト
+      description: 認証が必要なエンドポイント（デモ用）
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 認証成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # メモAPI
+  /api/memos:
+    get:
+      tags:
+        - Memo
+      summary: メモ一覧取得
+      description: |
+        メモの一覧を取得します。フィルタリング、検索、ページネーションに対応しています。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: カテゴリでフィルタ
+          required: false
+          schema:
+            type: string
+            maxLength: 50
+        - name: status
+          in: query
+          description: ステータスでフィルタ
+          required: false
+          schema:
+            type: string
+            enum: [active, archived]
+        - name: priority
+          in: query
+          description: 優先度でフィルタ
+          required: false
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: search
+          in: query
+          description: 全文検索キーワード
+          required: false
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: タグでフィルタ（カンマ区切り）
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: ページ番号
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: メモ一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoListResponse"
+        "400":
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - Memo
+      summary: メモ作成
+      description: 新しいメモを作成します
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemoRequest"
+      responses:
+        "201":
+          description: メモ作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoResponse"
+        "400":
+          description: 不正なリクエストボディ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/{id}:
+    get:
+      tags:
+        - Memo
+      summary: メモ詳細取得
+      description: 指定されたIDのメモの詳細を取得します
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: メモ詳細取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoResponse"
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - Memo
+      summary: メモ更新
+      description: 指定されたIDのメモを更新します
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemoRequest"
+      responses:
+        "200":
+          description: メモ更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoResponse"
+        "400":
+          description: 不正なリクエストボディ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Memo
+      summary: メモ削除
+      description: 指定されたIDのメモを削除します
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          description: メモ削除成功
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/{id}/archive:
+    patch:
+      tags:
+        - Memo
+      summary: メモアーカイブ
+      description: 指定されたIDのメモをアーカイブします
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: メモアーカイブ成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoResponse"
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/{id}/restore:
+    patch:
+      tags:
+        - Memo
+      summary: メモ復元
+      description: アーカイブされたメモを復元します
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: メモ復元成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoResponse"
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/search:
+    get:
+      tags:
+        - Memo
+      summary: メモ検索
+      description: |
+        メモを検索します。タイトルとコンテンツの全文検索が可能です。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: 検索キーワード
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: page
+          in: query
+          description: ページ番号
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: 検索結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoListResponse"
+        "400":
+          description: 不正な検索パラメータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer トークンによる認証。
+        現在は空実装ですが、将来的に実装予定です。
+
+  schemas:
+    # 基本レスポンス
+    HelloResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Hello World"
+        version:
+          type: string
+          example: "2.0"
+        service:
+          type: string
+          example: "memo-app-api-server"
+      required:
+        - message
+        - version
+        - service
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "OK"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-22T10:30:00+09:00"
+        uptime:
+          type: string
+          example: "running"
+      required:
+        - status
+        - timestamp
+        - uptime
+
+    ProtectedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "これは認証が必要なエンドポイントです"
+        user:
+          type: string
+          example: "認証されたユーザー"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-07-22T10:30:00+09:00"
+      required:
+        - message
+        - user
+        - timestamp
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: エラーの種類
+          example: "Invalid request format"
+        message:
+          type: string
+          description: 詳細なエラーメッセージ
+          example: "Field validation failed"
+      required:
+        - error
+
+    # メモ関連スキーマ
+    CreateMemoRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: メモのタイトル
+          maxLength: 200
+          example: "重要なタスク"
+        content:
+          type: string
+          description: メモの内容
+          example: "明日までにプレゼン資料を作成する"
+        category:
+          type: string
+          description: カテゴリ
+          maxLength: 50
+          example: "仕事"
+        tags:
+          type: array
+          description: タグのリスト
+          items:
+            type: string
+          example: ["プレゼン", "重要"]
+        priority:
+          type: string
+          description: 優先度
+          enum: [low, medium, high]
+          example: "high"
+      required:
+        - title
+        - content
+
+    UpdateMemoRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: メモのタイトル
+          maxLength: 200
+          example: "更新されたタスク"
+        content:
+          type: string
+          description: メモの内容
+          example: "更新されたメモの内容"
+        category:
+          type: string
+          description: カテゴリ
+          maxLength: 50
+          example: "プライベート"
+        tags:
+          type: array
+          description: タグのリスト
+          items:
+            type: string
+          example: ["更新", "完了"]
+        priority:
+          type: string
+          description: 優先度
+          enum: [low, medium, high]
+          example: "medium"
+        status:
+          type: string
+          description: ステータス
+          enum: [active, archived]
+          example: "active"
+
+    MemoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: メモID
+          example: 1
+        title:
+          type: string
+          description: メモのタイトル
+          example: "重要なタスク"
+        content:
+          type: string
+          description: メモの内容
+          example: "明日までにプレゼン資料を作成する"
+        category:
+          type: string
+          description: カテゴリ
+          example: "仕事"
+        tags:
+          type: array
+          description: タグのリスト
+          items:
+            type: string
+          example: ["プレゼン", "重要"]
+        priority:
+          type: string
+          description: 優先度
+          enum: [low, medium, high]
+          example: "high"
+        status:
+          type: string
+          description: ステータス
+          enum: [active, archived]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          description: 作成日時
+          example: "2025-07-22T10:00:00+09:00"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新日時
+          example: "2025-07-22T10:00:00+09:00"
+        completed_at:
+          type: string
+          format: date-time
+          description: 完了日時（nullの場合あり）
+          nullable: true
+          example: null
+      required:
+        - id
+        - title
+        - content
+        - category
+        - tags
+        - priority
+        - status
+        - created_at
+        - updated_at
+
+    MemoListResponse:
+      type: object
+      properties:
+        memos:
+          type: array
+          description: メモのリスト
+          items:
+            $ref: "#/components/schemas/MemoResponse"
+        total:
+          type: integer
+          description: 総件数
+          example: 25
+        page:
+          type: integer
+          description: 現在のページ番号
+          example: 1
+        limit:
+          type: integer
+          description: 1ページあたりの件数
+          example: 10
+        total_pages:
+          type: integer
+          description: 総ページ数
+          example: 3
+      required:
+        - memos
+        - total
+        - page
+        - limit
+        - total_pages

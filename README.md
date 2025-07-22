@@ -422,6 +422,30 @@ docker compose exec app make build             # アプリケーションをビ�
 - ログ設定の改善
 - CI/CD パイプライン
 
+## Swagger/OpenAPI統合
+
+このプロジェクトはSwagger/OpenAPIによるAPI仕様書とドキュメント管理を行っています。
+
+### API仕様書とドキュメント
+
+- **API仕様書**: `api/swagger.yaml` - OpenAPI 3.0.3形式でAPI仕様を定義
+- **インタラクティブドキュメント**: `make swagger-serve` でSwagger UIを起動（http://localhost:8081/docs）
+
+### 利用可能なコマンド
+
+```bash
+# Swagger UIでドキュメント表示
+make swagger-serve
+
+# API仕様の妥当性チェック
+make swagger-validate
+
+# Swagger関連ヘルプ
+make swagger-docs
+```
+
+詳細な使用方法については [`docs/SWAGGER_INTEGRATION.md`](docs/SWAGGER_INTEGRATION.md) をご覧ください。
+
 ## API使用例
 
 ### 1. メモの作成
