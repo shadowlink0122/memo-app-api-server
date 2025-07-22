@@ -1,6 +1,6 @@
 # Makefile for memo-app API server (ローカルビルド + Docker実行)
 
-.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info
+.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info swagger-serve swagger-validate swagger-docs
 
 # デフォルトターゲット（ローカルビルド + Docker環境での起動）
 all: build docker-up
@@ -581,6 +581,45 @@ pr-info:
 	@echo "📋 PR詳細情報:"
 	@gh pr view --json title,number,state,isDraft,mergeable,reviewDecision,statusCheckRollup,headRefName,baseRefName | jq '.'
 
+# === Swagger/OpenAPI管理 ===
+
+# Swagger UIでAPIドキュメントを表示
+swagger-serve:
+	@echo "🌐 Swagger UIでAPIドキュメントを表示します..."
+	@echo "   http://localhost:8081/docs でアクセスできます"
+	@echo "   終了するには Ctrl+C を押してください"
+	@docker run --rm -p 8081:8080 \
+		-v $$(pwd)/api:/app \
+		-e SWAGGER_JSON=/app/swagger.yaml \
+		swaggerapi/swagger-ui
+
+# Swaggerファイルをバリデーション
+swagger-validate:
+	@echo "🔍 Swagger YAML ファイルをバリデーションしています..."
+	@if command -v docker >/dev/null 2>&1; then \
+		docker run --rm -v $$(pwd)/api:/app \
+			openapitools/openapi-generator-cli:latest \
+			validate -i /app/swagger.yaml; \
+		echo "✅ Swagger YAML ファイルは有効です"; \
+	else \
+		echo "❌ Dockerが必要です"; \
+		exit 1; \
+	fi
+
+# Swagger仕様書とドキュメントの管理
+swagger-docs:
+	@echo "� Swagger/OpenAPI ドキュメント管理"
+	@echo ""
+	@echo "利用可能なコマンド:"
+	@echo "  make swagger-serve     - Swagger UIでドキュメント表示"
+	@echo "  make swagger-validate  - API仕様の妥当性チェック"
+	@echo ""
+	@echo "� ファイル構成:"
+	@echo "  api/swagger.yaml       - API仕様書（OpenAPI 3.0.3形式）"
+	@echo ""
+	@echo "🌐 アクセス先:"
+	@echo "  http://localhost:8081/docs  - Swagger UI（swagger-serve実行時）"
+
 # ヘルプ
 help:
 	@echo "=========================================="
@@ -638,6 +677,11 @@ help:
 	@echo "  pr-wip           - PRを[WIP]としてマーク（マージ防止）"
 	@echo "  pr-unwip         - PRから[WIP]マークを削除"
 	@echo "  pr-info          - PRの詳細情報を表示"
+	@echo ""
+	@echo "📚 Swagger/OpenAPI:"
+	@echo "  swagger-serve    - Swagger UIでAPIドキュメントを表示"
+	@echo "  swagger-validate - Swagger YAMLファイルをバリデーション"
+	@echo "  swagger-docs     - Swagger関連ヘルプと情報表示"
 	@echo ""
 	@echo "📦 個別サービス:"
 	@echo "  docker-db        - データベースのみ起動"
