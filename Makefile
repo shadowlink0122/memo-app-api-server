@@ -1,6 +1,6 @@
 # Makefile for memo-app API server (ローカルビルド + Docker実行)
 
-.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info swagger-serve swagger-validate swagger-docs docker-test-validation docker-test-security test-validation-internal test-security-internal
+.PHONY: build build-linux build-darwin build-windows docker-build docker-up docker-down docker-logs docker-test docker-clean help fmt fmt-check fmt-imports lint lint-ci migrate migrate-test migrate-all migrate-dry-run docker-migrate docker-migrate-test docker-migrate-all security security-ci docker-security init pr-create pr-ready pr-check pr-merge pr-merge-commit pr-status pr-wip pr-unwip pr-info swagger-serve swagger-validate swagger-docs docker-test-validation docker-test-security test-validation-internal test-security-internal git-setup-hooks git-remove-hooks git-hooks-status
 
 # デフォルトターゲット（ローカルビルド + Docker環境での起動）
 all: build docker-up
@@ -98,6 +98,34 @@ init:
 			echo "  ✅ pre-commitフックを設定しました（フォーマット・リントチェック）"; \
 		else \
 			echo "  ✅ pre-commitフックが既に設定されています"; \
+		fi; \
+		if [ ! -f .git/hooks/pre-push ]; then \
+			echo "  📝 pre-pushフックを設定中..."; \
+			echo '#!/bin/sh' > .git/hooks/pre-push; \
+			echo 'echo "🔍 Running pre-push format check..."' >> .git/hooks/pre-push; \
+			echo 'echo "📝 Checking code format before push..."' >> .git/hooks/pre-push; \
+			echo '' >> .git/hooks/pre-push; \
+			echo '# フォーマットを実行' >> .git/hooks/pre-push; \
+			echo 'make fmt' >> .git/hooks/pre-push; \
+			echo '' >> .git/hooks/pre-push; \
+			echo '# 変更があるかチェック' >> .git/hooks/pre-push; \
+			echo 'if ! git diff --exit-code --quiet; then' >> .git/hooks/pre-push; \
+			echo '    echo "❌ フォーマットにより変更が発生しました。以下のファイルに差分があります:"' >> .git/hooks/pre-push; \
+			echo '    git diff --name-only' >> .git/hooks/pre-push; \
+			echo '    echo ""' >> .git/hooks/pre-push; \
+			echo '    echo "🔧 以下の手順で修正してください:"' >> .git/hooks/pre-push; \
+			echo '    echo "  1. git add -A"' >> .git/hooks/pre-push; \
+			echo '    echo "  2. git commit -m \"Format code\""' >> .git/hooks/pre-push; \
+			echo '    echo "  3. git push"' >> .git/hooks/pre-push; \
+			echo '    echo ""' >> .git/hooks/pre-push; \
+			echo '    exit 1' >> .git/hooks/pre-push; \
+			echo 'fi' >> .git/hooks/pre-push; \
+			echo '' >> .git/hooks/pre-push; \
+			echo 'echo "✅ Format check passed - no changes needed!"' >> .git/hooks/pre-push; \
+			chmod +x .git/hooks/pre-push; \
+			echo "  ✅ pre-pushフックを設定しました（フォーマット・差分チェック）"; \
+		else \
+			echo "  ✅ pre-pushフックが既に設定されています"; \
 		fi; \
 	else \
 		echo "  ⚠️  Gitリポジトリが見つかりません"; \
@@ -515,6 +543,80 @@ docker-migrate-all:
 
 # === Git / PR管理 ===
 
+# Git pre-pushフックを手動で設定
+git-setup-hooks:
+	@echo "🔗 Gitフックを設定しています..."
+	@if [ ! -d .git ]; then \
+		echo "❌ Gitリポジトリが見つかりません"; \
+		exit 1; \
+	fi
+	@echo "📝 pre-pushフックを設定中..."
+	@echo '#!/bin/sh' > .git/hooks/pre-push
+	@echo 'echo "🔍 Running pre-push format check..."' >> .git/hooks/pre-push
+	@echo 'echo "📝 Checking code format before push..."' >> .git/hooks/pre-push
+	@echo '' >> .git/hooks/pre-push
+	@echo '# フォーマットを実行' >> .git/hooks/pre-push
+	@echo 'make fmt' >> .git/hooks/pre-push
+	@echo '' >> .git/hooks/pre-push
+	@echo '# 変更があるかチェック' >> .git/hooks/pre-push
+	@echo 'if ! git diff --exit-code --quiet; then' >> .git/hooks/pre-push
+	@echo '    echo "❌ フォーマットにより変更が発生しました。以下のファイルに差分があります:"' >> .git/hooks/pre-push
+	@echo '    git diff --name-only' >> .git/hooks/pre-push
+	@echo '    echo ""' >> .git/hooks/pre-push
+	@echo '    echo "🔧 以下の手順で修正してください:"' >> .git/hooks/pre-push
+	@echo '    echo "  1. git add -A"' >> .git/hooks/pre-push
+	@echo '    echo "  2. git commit -m \"Format code\""' >> .git/hooks/pre-push
+	@echo '    echo "  3. git push"' >> .git/hooks/pre-push
+	@echo '    echo ""' >> .git/hooks/pre-push
+	@echo '    exit 1' >> .git/hooks/pre-push
+	@echo 'fi' >> .git/hooks/pre-push
+	@echo '' >> .git/hooks/pre-push
+	@echo 'echo "✅ Format check passed - no changes needed!"' >> .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✅ pre-pushフックを設定しました"
+	@echo ""
+	@echo "📋 設定内容:"
+	@echo "  - git push前に自動でmake fmtを実行"
+	@echo "  - フォーマットにより差分が発生した場合はpushを中止"
+	@echo "  - 差分がある場合は修正手順を表示"
+
+# Gitフックを削除
+git-remove-hooks:
+	@echo "🗑️  Gitフックを削除しています..."
+	@if [ -f .git/hooks/pre-push ]; then \
+		rm .git/hooks/pre-push; \
+		echo "✅ pre-pushフックを削除しました"; \
+	else \
+		echo "ℹ️  pre-pushフックは存在しません"; \
+	fi
+	@if [ -f .git/hooks/pre-commit ]; then \
+		rm .git/hooks/pre-commit; \
+		echo "✅ pre-commitフックを削除しました"; \
+	else \
+		echo "ℹ️  pre-commitフックは存在しません"; \
+	fi
+
+# 現在のGitフック状態を確認
+git-hooks-status:
+	@echo "📊 現在のGitフック状態:"
+	@echo ""
+	@if [ -f .git/hooks/pre-commit ]; then \
+		echo "✅ pre-commitフック: 設定済み"; \
+		echo "   内容: フォーマット・リントチェック"; \
+	else \
+		echo "❌ pre-commitフック: 未設定"; \
+	fi
+	@if [ -f .git/hooks/pre-push ]; then \
+		echo "✅ pre-pushフック: 設定済み"; \
+		echo "   内容: フォーマット・差分チェック"; \
+	else \
+		echo "❌ pre-pushフック: 未設定"; \
+	fi
+	@echo ""
+	@echo "🔧 管理コマンド:"
+	@echo "  make git-setup-hooks  - フックを設定"
+	@echo "  make git-remove-hooks - フックを削除"
+
 # PR作成（現在のブランチから）
 pr-create:
 	@echo "📝 Pull Requestを作成しています..."
@@ -690,6 +792,11 @@ help:
 	@echo "  docker-migrate   - Docker環境でメインDBマイグレーション"
 	@echo "  docker-migrate-test   - Docker環境でテストDBマイグレーション"
 	@echo "  docker-migrate-all    - Docker環境で両方のDBマイグレーション"
+	@echo ""
+	@echo "🔀 Git管理:"
+	@echo "  git-setup-hooks  - pre-push/pre-commitフックを設定"
+	@echo "  git-remove-hooks - Gitフックを削除"
+	@echo "  git-hooks-status - 現在のGitフック状態を確認"
 	@echo ""
 	@echo "🔀 PR管理（GitHub CLI必要）:"
 	@echo "  pr-create        - 現在のブランチからPRを作成（Draft）"
