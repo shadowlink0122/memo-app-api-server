@@ -167,6 +167,10 @@ func main() {
 				"uptime":    "running",
 			})
 		})
+		public.HEAD("/health", func(c *gin.Context) {
+			logger.WithField("endpoint", "/health").Debug("ヘルスチェックエンドポイント（HEAD）にアクセス")
+			c.Status(http.StatusOK)
+		})
 
 		// 別のHello Worldエンドポイント（テキスト形式）
 		public.GET("/hello", func(c *gin.Context) {

@@ -206,9 +206,9 @@ func (suite *E2ETestSuite) TestAPIIntegration(t *testing.T) {
 
 	var baseURL string
 	if inDocker {
-		baseURL = "http://app:8080" // Docker環境内ではappコンテナ名を使用
+		baseURL = "http://app:8000" // Docker環境内ではappコンテナ名を使用
 	} else {
-		baseURL = "http://localhost:8080" // ローカル環境
+		baseURL = "http://localhost:8000" // ローカル環境
 	}
 
 	// APIサーバーのヘルスチェック

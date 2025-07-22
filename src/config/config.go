@@ -52,7 +52,7 @@ type DatabaseConfig struct {
 func LoadConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
+			Port: getEnv("SERVER_PORT", "8000"),
 		},
 		Log: LogConfig{
 			Level:          getEnv("LOG_LEVEL", "info"),
