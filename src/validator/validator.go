@@ -50,6 +50,10 @@ func NewCustomValidator() *CustomValidator {
 	v.RegisterValidation("safe_category", cv.validateSafeCategory)
 	v.RegisterValidation("safe_tag", cv.validateSafeTag)
 	v.RegisterValidation("no_sql_injection", cv.validateNoSQLInjection)
+	v.RegisterValidation("password_strength", cv.validatePasswordStrength)
+	v.RegisterValidation("username_format", cv.validateUsernameFormat)
+	v.RegisterValidation("safe_tag", cv.validateSafeTag)
+	v.RegisterValidation("no_sql_injection", cv.validateNoSQLInjection)
 
 	return cv
 }
@@ -213,4 +217,162 @@ func (cv *CustomValidator) ValidateID(idStr string) (int, error) {
 	}
 
 	return id, nil
+}
+
+// validatePasswordStrength パスワード強度をチェック
+func (cv *CustomValidator) validatePasswordStrength(fl validator.FieldLevel) bool {
+	password := fl.Field().String()
+
+	// 最小長チェック（8文字以上）
+	if len(password) < 8 {
+		return false
+	}
+
+	// 最大長チェック（128文字以下）
+	if len(password) > 128 {
+		return false
+	}
+
+	// 複雑性チェック（以下の4つのうち3つ以上を満たす必要がある）
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	hasDigit := regexp.MustCompile(`[0-9]`).MatchString(password)
+	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?]`).MatchString(password)
+
+	complexityCount := 0
+	if hasLower {
+		complexityCount++
+	}
+	if hasUpper {
+		complexityCount++
+	}
+	if hasDigit {
+		complexityCount++
+	}
+	if hasSpecial {
+		complexityCount++
+	}
+
+	// 3つ以上の文字種が必要
+	if complexityCount < 3 {
+		return false
+	}
+
+	// 一般的な弱いパスワードをチェック
+	weakPasswords := []string{
+		"password", "123456", "qwerty", "abc123", "password123",
+		"admin", "root", "user", "test", "guest", "demo",
+	}
+
+	lowerPassword := strings.ToLower(password)
+	for _, weak := range weakPasswords {
+		if strings.Contains(lowerPassword, weak) {
+			return false
+		}
+	}
+
+	// 連続する文字をチェック（123456、abcdef等）
+	if hasConsecutiveChars(password) {
+		return false
+	}
+
+	// 同じ文字の連続をチェック（aaaaaa、111111等）
+	if hasRepeatingChars(password) {
+		return false
+	}
+
+	return true
+}
+
+// validateUsernameFormat ユーザー名の形式をチェック
+func (cv *CustomValidator) validateUsernameFormat(fl validator.FieldLevel) bool {
+	username := fl.Field().String()
+
+	// 長さチェック（3-50文字）
+	if len(username) < 3 || len(username) > 50 {
+		return false
+	}
+
+	// 文字形式チェック（英数字、ハイフン、アンダースコアのみ）
+	usernamePattern := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !usernamePattern.MatchString(username) {
+		return false
+	}
+
+	// 先頭と末尾にハイフンやアンダースコアは不可
+	if strings.HasPrefix(username, "-") || strings.HasPrefix(username, "_") ||
+		strings.HasSuffix(username, "-") || strings.HasSuffix(username, "_") {
+		return false
+	}
+
+	// 連続するハイフンやアンダースコアは不可
+	if strings.Contains(username, "__") || strings.Contains(username, "--") ||
+		strings.Contains(username, "_-") || strings.Contains(username, "-_") {
+		return false
+	}
+
+	// 予約語チェック
+	reservedWords := []string{
+		"admin", "root", "api", "www", "mail", "ftp", "localhost",
+		"test", "user", "guest", "demo", "support", "help", "info",
+		"null", "undefined", "system", "config", "settings",
+	}
+
+	lowerUsername := strings.ToLower(username)
+	for _, reserved := range reservedWords {
+		if lowerUsername == reserved {
+			return false
+		}
+	}
+
+	return true
+}
+
+// hasConsecutiveChars 連続する文字があるかチェック
+func hasConsecutiveChars(s string) bool {
+	if len(s) < 4 {
+		return false
+	}
+
+	for i := 0; i <= len(s)-4; i++ {
+		// 数字の連続（1234、abcd等）
+		isAscending := true
+		isDescending := true
+
+		for j := 1; j < 4; j++ {
+			if s[i+j] != s[i]+byte(j) {
+				isAscending = false
+			}
+			if s[i+j] != s[i]-byte(j) {
+				isDescending = false
+			}
+		}
+
+		if isAscending || isDescending {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasRepeatingChars 同じ文字の連続があるかチェック
+func hasRepeatingChars(s string) bool {
+	if len(s) < 4 {
+		return false
+	}
+
+	count := 1
+	for i := 1; i < len(s); i++ {
+		if s[i] == s[i-1] {
+			count++
+			if count >= 4 {
+				return true
+			}
+		} else {
+			count = 1
+		}
+	}
+
+	return false
 }

@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"memo-app/src/logger"
+	"memo-app/src/repository"
+	"memo-app/src/service"
 	"net/http"
 	"strings"
 
@@ -10,7 +12,7 @@ import (
 )
 
 // AuthMiddleware ユーザー認証用のmiddleware
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(jwtService service.JWTService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger.WithFields(logrus.Fields{
 			"method":    c.Request.Method,
@@ -44,46 +46,52 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 簡単なtoken検証（テスト用）
-		// 実際のプロダクションではJWT検証やデータベースでの検証を行う
-		if !validateToken(token) {
+		// JWT token検証
+		userID, err := jwtService.ValidateAccessToken(token)
+		if err != nil {
 			logger.WithFields(logrus.Fields{
 				"client_ip": c.ClientIP(),
-				"token":     token[:min(len(token), 10)] + "...", // tokenの最初の10文字のみログ出力
-			}).Warn("認証失敗: 無効なtoken")
+				"error":     err.Error(),
+			}).Warn("認証失敗: 無効なJWTトークン")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
 
+		// ユーザー情報を取得
+		user, err := userRepo.GetByID(userID)
+		if err != nil {
+			logger.WithFields(logrus.Fields{
+				"client_ip": c.ClientIP(),
+				"user_id":   userID,
+				"error":     err.Error(),
+			}).Warn("認証失敗: ユーザーが見つかりません")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			c.Abort()
+			return
+		}
+
+		// ユーザーがアクティブかチェック
+		if !user.IsActive {
+			logger.WithFields(logrus.Fields{
+				"client_ip": c.ClientIP(),
+				"user_id":   userID,
+			}).Warn("認証失敗: ユーザーアカウントが無効です")
+			c.JSON(http.StatusForbidden, gin.H{"error": "Account is deactivated"})
+			c.Abort()
+			return
+		}
+
+		// リクエストコンテキストにユーザー情報を設定
+		c.Set("user", user)
+		c.Set("user_id", userID)
+
 		// 認証成功
-		logger.WithField("client_ip", c.ClientIP()).Info("認証成功")
+		logger.WithFields(logrus.Fields{
+			"client_ip": c.ClientIP(),
+			"user_id":   userID,
+			"username":  user.Username,
+		}).Info("認証成功")
 		c.Next()
 	}
-}
-
-// validateToken tokenの検証を行う（簡単な実装）
-func validateToken(token string) bool {
-	// テスト用の簡単なtoken検証
-	// 実際にはJWTの検証やデータベースでの確認を行う
-	validTokens := []string{
-		"valid-token-123",
-		"test-token",
-		"admin-token",
-	}
-
-	for _, validToken := range validTokens {
-		if token == validToken {
-			return true
-		}
-	}
-	return false
-}
-
-// min は2つの整数のうち小さい方を返すヘルパー関数
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

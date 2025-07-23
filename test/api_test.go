@@ -14,6 +14,8 @@ import (
 	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	"memo-app/src/models"
+	"memo-app/src/service"
 	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +24,74 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// MockJWTService APIテスト用のモック
+type MockJWTService struct{}
+
+func (m *MockJWTService) GenerateAccessToken(userID int) (string, error) {
+	return "mock-access-token", nil
+}
+
+func (m *MockJWTService) GenerateRefreshToken(userID int) (string, error) {
+	return "mock-refresh-token", nil
+}
+
+func (m *MockJWTService) ValidateToken(tokenString string) (*service.JWTClaims, error) {
+	if tokenString == "valid-token-123" {
+		return &service.JWTClaims{
+			UserID: 1,
+			Type:   "access",
+		}, nil
+	}
+	return nil, assert.AnError
+}
+
+func (m *MockJWTService) ValidateAccessToken(tokenString string) (int, error) {
+	if tokenString == "valid-token-123" {
+		return 1, nil
+	}
+	return 0, assert.AnError
+}
+
+func (m *MockJWTService) ValidateRefreshToken(tokenString string) (*service.JWTClaims, error) {
+	if tokenString == "valid-refresh-token" {
+		return &service.JWTClaims{
+			UserID: 1,
+			Type:   "refresh",
+		}, nil
+	}
+	return nil, assert.AnError
+}
+
+// MockUserRepository APIテスト用のモック
+type MockUserRepository struct{}
+
+func (m *MockUserRepository) Create(user *models.User) error { return nil }
+func (m *MockUserRepository) GetByID(id int) (*models.User, error) {
+	if id == 1 {
+		return &models.User{
+			ID:       1,
+			Username: "testuser",
+			Email:    "test@example.com",
+			IsActive: true, // アクティブなユーザーとして設定
+		}, nil
+	}
+	return nil, assert.AnError
+}
+func (m *MockUserRepository) GetByEmail(email string) (*models.User, error)       { return nil, nil }
+func (m *MockUserRepository) GetByGitHubID(githubID int64) (*models.User, error)  { return nil, nil }
+func (m *MockUserRepository) GetByUsername(username string) (*models.User, error) { return nil, nil }
+func (m *MockUserRepository) Update(user *models.User) error                      { return nil }
+func (m *MockUserRepository) UpdateLastLogin(userID int) error                    { return nil }
+func (m *MockUserRepository) GetIPRegistration(ipAddress string) (*models.IPRegistration, error) {
+	return nil, nil
+}
+func (m *MockUserRepository) CreateIPRegistration(ipReg *models.IPRegistration) error { return nil }
+func (m *MockUserRepository) UpdateIPRegistration(ipReg *models.IPRegistration) error { return nil }
+func (m *MockUserRepository) GetUserCountByIP(ipAddress string) (int, error)          { return 0, nil }
+func (m *MockUserRepository) IsEmailExists(email string) (bool, error)                { return false, nil }
+func (m *MockUserRepository) IsUsernameExists(username string) (bool, error)          { return false, nil }
+func (m *MockUserRepository) IsGitHubIDExists(githubID int64) (bool, error)           { return false, nil }
 
 func TestMain(m *testing.M) {
 	// テスト前の初期化
@@ -134,7 +204,9 @@ func setupTestRouter(mockUsecase *MockMemoUsecase) *gin.Engine {
 
 	// プライベートルート（認証が必要）
 	private := r.Group("/api")
-	private.Use(middleware.AuthMiddleware())
+	mockJWTService := &MockJWTService{}
+	mockUserRepo := &MockUserRepository{}
+	private.Use(middleware.AuthMiddleware(mockJWTService, mockUserRepo))
 	{
 		private.GET("/protected", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{

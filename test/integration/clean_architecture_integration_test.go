@@ -17,6 +17,8 @@ import (
 	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	srcRepository "memo-app/src/repository"
+	"memo-app/src/service"
 	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -25,11 +27,15 @@ import (
 
 type MemoIntegrationTestSuite struct {
 	suite.Suite
-	router  *gin.Engine
-	db      *database.DB
-	handler *handler.MemoHandler
-	usecase usecase.MemoUsecase
-	repo    domain.MemoRepository
+	router       *gin.Engine
+	db           *database.DB
+	handler      *handler.MemoHandler
+	usecase      usecase.MemoUsecase
+	repo         domain.MemoRepository
+	jwtService   service.JWTService
+	userRepo     srcRepository.UserRepository
+	testUserID   int
+	testJWTToken string
 }
 
 func (suite *MemoIntegrationTestSuite) SetupSuite() {
@@ -73,6 +79,13 @@ func (suite *MemoIntegrationTestSuite) SetupSuite() {
 	suite.usecase = usecase.NewMemoUsecase(suite.repo)
 	suite.handler = handler.NewMemoHandler(suite.usecase, logger.Log)
 
+	// 認証用のサービスとリポジトリ
+	suite.userRepo = srcRepository.NewUserRepository(suite.db.DB)
+	suite.jwtService = service.NewJWTService(cfg)
+
+	// テストユーザーの作成とJWTトークンの生成
+	suite.createTestUser()
+
 	// Ginルーターの設定
 	gin.SetMode(gin.TestMode)
 	suite.router = gin.New()
@@ -83,7 +96,7 @@ func (suite *MemoIntegrationTestSuite) SetupSuite() {
 
 	// ルートの設定
 	api := suite.router.Group("/api/memos")
-	api.Use(middleware.AuthMiddleware()) // 認証ミドルウェア
+	api.Use(middleware.AuthMiddleware(suite.jwtService, suite.userRepo)) // 認証ミドルウェア
 	{
 		api.POST("", suite.handler.CreateMemo)
 		api.GET("", suite.handler.ListMemos)
@@ -142,7 +155,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 
 	req := httptest.NewRequest("POST", "/api/memos", bytes.NewBuffer(createBody))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer test-token") // テスト用トークン
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken) // 有効なトークンを使用
 
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -169,7 +182,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	memoIDStr := fmt.Sprintf("%d", memoID)
 	getURL := "/api/memos/" + memoIDStr
 	req = httptest.NewRequest("GET", getURL, nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -184,7 +197,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 
 	// 3. メモ一覧取得
 	req = httptest.NewRequest("GET", "/api/memos", nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -203,7 +216,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	updateURL := "/api/memos/" + fmt.Sprintf("%d", memoID)
 	req = httptest.NewRequest("PUT", updateURL, bytes.NewBuffer(updateBody))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -219,7 +232,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	// 5. メモアーカイブ
 	archiveURL := "/api/memos/" + fmt.Sprintf("%d", memoID) + "/archive"
 	req = httptest.NewRequest("PATCH", archiveURL, nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -229,7 +242,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	// 6. メモリストア
 	restoreURL := "/api/memos/" + fmt.Sprintf("%d", memoID) + "/restore"
 	req = httptest.NewRequest("PATCH", restoreURL, nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -239,7 +252,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	// 7. メモ削除
 	deleteURL := "/api/memos/" + fmt.Sprintf("%d", memoID)
 	req = httptest.NewRequest("DELETE", deleteURL, nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -249,7 +262,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	// 8. 削除後の取得確認（404エラーになるはず）
 	getDeletedURL := "/api/memos/" + fmt.Sprintf("%d", memoID)
 	req = httptest.NewRequest("GET", getDeletedURL, nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -290,7 +303,7 @@ func (suite *MemoIntegrationTestSuite) TestSearchMemos() {
 
 		req := httptest.NewRequest("POST", "/api/memos", bytes.NewBuffer(createBody))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 		w := httptest.NewRecorder()
 		suite.router.ServeHTTP(w, req)
@@ -300,7 +313,7 @@ func (suite *MemoIntegrationTestSuite) TestSearchMemos() {
 
 	// 検索テスト
 	req := httptest.NewRequest("GET", "/api/memos/search?q=golang", nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
@@ -336,6 +349,7 @@ func (suite *MemoIntegrationTestSuite) createTablesIfNotExists() {
 		username VARCHAR(255) UNIQUE NOT NULL,
 		email VARCHAR(255) UNIQUE NOT NULL,
 		password_hash VARCHAR(255) NOT NULL,
+		created_ip VARCHAR(45) NOT NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -375,20 +389,30 @@ func (suite *MemoIntegrationTestSuite) createTablesIfNotExists() {
 
 	_, err = suite.db.ExecContext(ctx, indexSQL)
 	suite.Require().NoError(err, "Failed to create indexes")
+}
 
-	// テスト用ユーザーの挿入（存在しない場合のみ）
+// createTestUser は テストユーザーを作成し、JWTトークンを生成します
+func (suite *MemoIntegrationTestSuite) createTestUser() {
+	ctx := context.Background()
+
+	// テスト用ユーザーの挿入（存在しない場合のみ）- created_ipを含む
 	insertUserSQL := `
-	INSERT INTO users (username, email, password_hash) 
-	VALUES ('testuser', 'test@example.com', 'hashed_password') 
+	INSERT INTO users (username, email, password_hash, created_ip) 
+	VALUES ('testuser', 'test@example.com', 'hashed_password', '127.0.0.1') 
 	ON CONFLICT (username) DO NOTHING;`
 
-	_, err = suite.db.ExecContext(ctx, insertUserSQL)
+	_, err := suite.db.ExecContext(ctx, insertUserSQL)
 	suite.Require().NoError(err, "Failed to insert test user")
 
 	// テスト用ユーザーIDを取得
-	var userID int
 	getUserSQL := `SELECT id FROM users WHERE username = 'testuser' LIMIT 1;`
-	err = suite.db.QueryRowContext(ctx, getUserSQL).Scan(&userID)
+	err = suite.db.QueryRowContext(ctx, getUserSQL).Scan(&suite.testUserID)
 	suite.Require().NoError(err, "Failed to get test user ID")
-	suite.T().Logf("Test user ID: %d", userID)
+
+	// JWTトークンを生成
+	suite.testJWTToken, err = suite.jwtService.GenerateAccessToken(suite.testUserID)
+	suite.Require().NoError(err, "Failed to generate JWT token")
+
+	suite.T().Logf("Test user ID: %d", suite.testUserID)
+	suite.T().Logf("Test JWT token: %s", suite.testJWTToken[:20]+"...") // 最初の20文字のみログ出力
 }

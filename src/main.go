@@ -179,20 +179,21 @@ func main() {
 		})
 	}
 
+	// TODO: 認証システム統合後に有効化
 	// 認証が必要なプライベートルート
-	private := r.Group("/api")
-	private.Use(middleware.AuthMiddleware())
-	{
-		// 旧来の保護されたエンドポイント（後方互換性のため残す）
-		private.GET("/protected", func(c *gin.Context) {
-			logger.WithField("endpoint", "/api/protected").Info("保護されたエンドポイントにアクセス")
-			c.JSON(http.StatusOK, gin.H{
-				"message":   "これは認証が必要なエンドポイントです",
-				"user":      "認証されたユーザー", // TODO: 実際のユーザー情報を返す
-				"timestamp": time.Now().Format(time.RFC3339),
-			})
-		})
-	}
+	// private := r.Group("/api")
+	// private.Use(middleware.AuthMiddleware())
+	// {
+	// 	// 旧来の保護されたエンドポイント（後方互換性のため残す）
+	// 	private.GET("/protected", func(c *gin.Context) {
+	// 		logger.WithField("endpoint", "/api/protected").Info("保護されたエンドポイントにアクセス")
+	// 		c.JSON(http.StatusOK, gin.H{
+	// 			"message":   "これは認証が必要なエンドポイントです",
+	// 			"user":      "認証されたユーザー", // TODO: 実際のユーザー情報を返す
+	// 			"timestamp": time.Now().Format(time.RFC3339),
+	// 		})
+	// 	})
+	// }
 
 	// メモAPIのルートを設定
 	routes.SetupRoutes(r, memoHandler)

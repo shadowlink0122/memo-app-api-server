@@ -12,6 +12,7 @@ type Config struct {
 	Log      LogConfig
 	S3       S3Config
 	Database DatabaseConfig
+	Auth     AuthConfig
 }
 
 // ServerConfig サーバー設定
@@ -48,6 +49,18 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+// AuthConfig 認証設定
+type AuthConfig struct {
+	JWTSecret          string
+	JWTExpiresIn       time.Duration
+	RefreshExpiresIn   time.Duration
+	GitHubClientID     string
+	GitHubClientSecret string
+	GitHubRedirectURL  string
+	MaxAccountsPerIP   int
+	IPCooldownPeriod   time.Duration
+}
+
 // LoadConfig 環境変数から設定を読み込み
 func LoadConfig() *Config {
 	return &Config{
@@ -76,6 +89,16 @@ func LoadConfig() *Config {
 			Password: getEnv("DB_PASSWORD", "password"),
 			DBName:   getEnv("DB_NAME", "memo_app"),
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		},
+		Auth: AuthConfig{
+			JWTSecret:          getEnv("JWT_SECRET", "your-super-secret-jwt-key-change-in-production"),
+			JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 24*time.Hour),
+			RefreshExpiresIn:   getDurationEnv("REFRESH_EXPIRES_IN", 7*24*time.Hour),
+			GitHubClientID:     getEnv("GITHUB_CLIENT_ID", ""),
+			GitHubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
+			GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", "http://localhost:3000/auth/github/callback"),
+			MaxAccountsPerIP:   getIntEnv("MAX_ACCOUNTS_PER_IP", 3),
+			IPCooldownPeriod:   getDurationEnv("IP_COOLDOWN_PERIOD", 24*time.Hour),
 		},
 	}
 }
