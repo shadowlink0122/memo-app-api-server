@@ -37,6 +37,10 @@ tags:
     description: システム状態確認用API
   - name: Hello
     description: 基本的なGreeting API
+  - name: Auth
+    description: ユーザー認証API
+  - name: User
+    description: ユーザー管理API（認証必要）
   - name: Memo
     description: メモ管理API（認証必要）
   - name: Protected
@@ -140,6 +144,220 @@ paths:
               schema:
                 type: string
                 example: "Hello World!"
+
+  # 認証API
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: ローカル認証新規登録
+      description: ID/パスワードによる新規ユーザー登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: ユーザー名またはメールアドレスが既に存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: 同一IPからの登録制限に達しました
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: ローカル認証ログイン
+      description: メールアドレスとパスワードによるログイン
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証情報が正しくありません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: アカウントが無効化されています
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/github/url:
+    get:
+      tags:
+        - Auth
+      summary: GitHub認証URL取得
+      description: GitHub OAuth認証のためのURLを取得
+      responses:
+        "200":
+          description: 認証URL取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GitHubAuthURLResponse"
+        "500":
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/github/callback:
+    get:
+      tags:
+        - Auth
+      summary: GitHub認証コールバック
+      description: GitHubからのOAuth認証コールバックを処理
+      parameters:
+        - name: code
+          in: query
+          description: GitHubから返される認証コード
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: CSRF防止用のstate値
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GitHub認証成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: メールアドレスが他の認証方法で既に登録済み
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: 同一IPからの登録制限に達しました
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: GitHub認証処理エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: トークンリフレッシュ
+      description: リフレッシュトークンを使用してアクセストークンを更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: トークンリフレッシュ成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 無効なリフレッシュトークン
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/profile:
+    get:
+      tags:
+        - User
+      summary: ユーザープロフィール取得
+      description: 現在ログイン中のユーザーのプロフィール情報を取得
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: プロフィール取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # 認証テスト用API
   /api/protected:
@@ -564,6 +782,159 @@ components:
         - status
         - timestamp
         - uptime
+
+    # 認証関連スキーマ
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: ユーザー名（3-30文字、英数字とアンダースコアのみ）
+          pattern: "^[a-zA-Z0-9_]{3,30}$"
+          example: "john_doe"
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: "john@example.com"
+        password:
+          type: string
+          description: パスワード（8文字以上、大小文字・数字・記号を含む）
+          minLength: 8
+          example: "SecurePass123!"
+      required:
+        - username
+        - email
+        - password
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: "john@example.com"
+        password:
+          type: string
+          description: パスワード
+          example: "SecurePass123!"
+      required:
+        - email
+        - password
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          description: リフレッシュトークン
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required:
+        - refresh_token
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/PublicUser"
+            access_token:
+              type: string
+              description: JWTアクセストークン
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            refresh_token:
+              type: string
+              description: JWTリフレッシュトークン
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expires_in:
+              type: integer
+              description: アクセストークンの有効期限（秒）
+              example: 86400
+          required:
+            - user
+            - access_token
+            - refresh_token
+            - expires_in
+      required:
+        - message
+        - data
+
+    GitHubAuthURLResponse:
+      type: object
+      properties:
+        auth_url:
+          type: string
+          description: GitHub認証URL
+          example: "https://github.com/login/oauth/authorize?client_id=...&state=..."
+        state:
+          type: string
+          description: CSRF防止用のstate値
+          example: "random-state-string"
+      required:
+        - auth_url
+        - state
+
+    PublicUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ユーザーID
+          example: 1
+        username:
+          type: string
+          description: ユーザー名
+          example: "john_doe"
+        email:
+          type: string
+          format: email
+          description: メールアドレス
+          example: "john@example.com"
+        github_username:
+          type: string
+          nullable: true
+          description: GitHubユーザー名
+          example: "johndoe"
+        avatar_url:
+          type: string
+          nullable: true
+          description: アバター画像URL
+          example: "https://avatars.githubusercontent.com/u/123456?v=4"
+        is_active:
+          type: boolean
+          description: アカウントの有効性
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: アカウント作成日時
+          example: "2025-07-22T10:00:00+09:00"
+        updated_at:
+          type: string
+          format: date-time
+          description: 最終更新日時
+          example: "2025-07-22T10:00:00+09:00"
+      required:
+        - id
+        - username
+        - email
+        - is_active
+        - created_at
+        - updated_at
+
+    UserProfileResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicUser"
+      required:
+        - data
 
     ProtectedResponse:
       type: object

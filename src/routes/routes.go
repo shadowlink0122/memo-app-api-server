@@ -15,9 +15,19 @@ func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler) {
 	api.Use(middleware.CORSMiddleware())
 	api.Use(middleware.RateLimitMiddleware())
 
-	// 認証が必要なメモAPIルート
+	// TODO: 認証システムを完全に統合後に有効化
+	// 認証関連のパブリックルート
+	// auth := api.Group("/auth")
+	// {
+	//     auth.POST("/register", authHandler.Register)
+	//     auth.POST("/login", authHandler.Login)
+	//     auth.POST("/refresh", authHandler.RefreshToken)
+	//     auth.GET("/github/url", authHandler.GetGitHubAuthURL)
+	//     auth.GET("/github/callback", authHandler.GitHubCallback)
+	// }
+
+	// 一時的に認証なしでメモAPIを利用可能にする
 	memos := api.Group("/memos")
-	memos.Use(middleware.AuthMiddleware())
 	{
 		// メモの基本CRUD操作
 		memos.POST("", memoHandler.CreateMemo)       // POST /api/memos

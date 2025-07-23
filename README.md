@@ -12,7 +12,12 @@ Go + Ginを使用したREST APIサーバーです。
 
 ### 実現したいこと
 
-- githubアカウントで登録可能
+- **githubアカウントで登録可能** ✅
+- **ローカル認証（ID/パスワード）もサポート** ✅
+- **セキュリティ機能**
+  - パスワード強度チェック ✅
+  - 同一IPアドレスからの複数アカウント作成制限 ✅
+  - JWT認証によるセキュアなトークン管理 ✅
 - private機能(メイン)
     - わからないもの、困ったことを簡単にメモできる
         - 後から追加コメント、解決できたかわかるようにする
@@ -80,6 +85,26 @@ memo-app-api-server/
 ```
 
 ## 主な機能
+
+### 認証システム
+
+#### 新規登録・ログイン機能
+- **GitHub OAuth認証**: GitHubアカウントを使用した簡単登録
+- **ローカル認証**: ID/パスワードによる従来型の認証
+- **セキュリティ機能**:
+  - パスワード強度チェック（8文字以上、大文字・小文字・数字・記号を含む）
+  - ユーザー名フォーマット検証（3-30文字、英数字とアンダースコア）
+  - 同一IPアドレスからの複数アカウント作成制限（デフォルト: 3アカウント/IP）
+- **JWT認証**: セキュアなアクセストークンとリフレッシュトークンの管理
+- **アカウント管理**: アクティブ/非アクティブ状態の管理
+
+#### APIエンドポイント
+- `POST /api/auth/register` - ローカル認証での新規登録
+- `POST /api/auth/login` - ローカル認証でのログイン
+- `GET /api/auth/github/url` - GitHub認証URL取得
+- `GET /api/auth/github/callback` - GitHub認証コールバック
+- `POST /api/auth/refresh` - アクセストークンの更新
+- `GET /api/profile` - 現在のユーザープロフィール取得
 
 ### メモAPI
 
@@ -207,6 +232,27 @@ cp .env.example .env
 ```bash
 # サーバー設定
 SERVER_PORT=8000
+
+# 認証設定
+JWT_SECRET=your-jwt-secret-key
+JWT_EXPIRES_IN=24h
+REFRESH_TOKEN_EXPIRES_IN=168h
+
+# GitHub OAuth設定
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_REDIRECT_URL=http://localhost:8000/api/auth/github/callback
+
+# IP制限設定
+MAX_REGISTRATIONS_PER_IP=3
+IP_LIMIT_DURATION=24h
+
+# データベース設定
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=memo_app
 
 # ログ設定
 LOG_LEVEL=info

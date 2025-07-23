@@ -5,13 +5,138 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	"memo-app/src/models"
+	"memo-app/src/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
+
+// MockJWTService は認証ミドルウェアテスト用のモック
+type MockJWTService struct{}
+
+func (m *MockJWTService) GenerateAccessToken(userID int) (string, error) {
+	return "mock-access-token", nil
+}
+
+func (m *MockJWTService) GenerateRefreshToken(userID int) (string, error) {
+	return "mock-refresh-token", nil
+}
+
+func (m *MockJWTService) ValidateToken(tokenString string) (*service.JWTClaims, error) {
+	if tokenString == "valid-token" {
+		return &service.JWTClaims{
+			UserID: 1,
+			Type:   "access",
+		}, nil
+	}
+	return nil, assert.AnError
+}
+
+func (m *MockJWTService) ValidateAccessToken(tokenString string) (int, error) {
+	if tokenString == "valid-token-123" {
+		return 1, nil
+	}
+	return 0, assert.AnError
+}
+
+func (m *MockJWTService) ValidateRefreshToken(tokenString string) (*service.JWTClaims, error) {
+	if tokenString == "valid-refresh-token" {
+		return &service.JWTClaims{
+			UserID: 1,
+			Type:   "refresh",
+		}, nil
+	}
+	return nil, assert.AnError
+}
+
+// MockUserRepository は認証ミドルウェアテスト用のモック
+type MockUserRepository struct{}
+
+func (m *MockUserRepository) Create(user *models.User) error {
+	return nil
+}
+
+func (m *MockUserRepository) GetByID(id int) (*models.User, error) {
+	if id == 1 {
+		return &models.User{
+			ID:       1,
+			Username: "testuser",
+			Email:    "test@example.com",
+			IsActive: true,
+		}, nil
+	}
+	return nil, assert.AnError
+}
+
+func (m *MockUserRepository) GetByEmail(email string) (*models.User, error) {
+	return &models.User{
+		ID:       1,
+		Username: "testuser",
+		Email:    email,
+	}, nil
+}
+
+func (m *MockUserRepository) GetByGitHubID(githubID int64) (*models.User, error) {
+	return &models.User{
+		ID:       1,
+		Username: "testuser",
+		Email:    "test@example.com",
+		GitHubID: &githubID,
+	}, nil
+}
+
+func (m *MockUserRepository) GetByUsername(username string) (*models.User, error) {
+	return &models.User{
+		ID:       1,
+		Username: username,
+		Email:    "test@example.com",
+	}, nil
+}
+
+func (m *MockUserRepository) Update(user *models.User) error {
+	return nil
+}
+
+func (m *MockUserRepository) UpdateLastLogin(userID int) error {
+	return nil
+}
+
+func (m *MockUserRepository) GetIPRegistration(ipAddress string) (*models.IPRegistration, error) {
+	return &models.IPRegistration{
+		IPAddress:  ipAddress,
+		UserCount:  1,
+		LastUsedAt: time.Now(),
+	}, nil
+}
+
+func (m *MockUserRepository) CreateIPRegistration(ipReg *models.IPRegistration) error {
+	return nil
+}
+
+func (m *MockUserRepository) UpdateIPRegistration(ipReg *models.IPRegistration) error {
+	return nil
+}
+
+func (m *MockUserRepository) GetUserCountByIP(ipAddress string) (int, error) {
+	return 1, nil
+}
+
+func (m *MockUserRepository) IsEmailExists(email string) (bool, error) {
+	return false, nil
+}
+
+func (m *MockUserRepository) IsUsernameExists(username string) (bool, error) {
+	return false, nil
+}
+
+func (m *MockUserRepository) IsGitHubIDExists(githubID int64) (bool, error) {
+	return false, nil
+}
 
 func TestMain(m *testing.M) {
 	// テスト前の初期化
@@ -181,7 +306,10 @@ func TestAuthMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := gin.New()
-			r.Use(middleware.AuthMiddleware())
+			// モックサービスを作成してAuthMiddlewareに渡す
+			mockJWTService := &MockJWTService{}
+			mockUserRepo := &MockUserRepository{}
+			r.Use(middleware.AuthMiddleware(mockJWTService, mockUserRepo))
 
 			r.GET("/protected", func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"message": "protected resource"})
@@ -232,7 +360,10 @@ func TestMiddlewareChain(t *testing.T) {
 	r.Use(middleware.LoggerMiddleware())
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.RateLimitMiddleware())
-	r.Use(middleware.AuthMiddleware())
+	// モックサービスを作成してAuthMiddlewareに渡す
+	mockJWTService := &MockJWTService{}
+	mockUserRepo := &MockUserRepository{}
+	r.Use(middleware.AuthMiddleware(mockJWTService, mockUserRepo))
 
 	r.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "all middleware applied"})
