@@ -14,17 +14,20 @@ import (
 // テスト用データベース接続文字列を取得するヘルパー関数
 func getTestDSN(t *testing.T) string {
 	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		// GitHub Actions環境かチェック
-		if os.Getenv("GITHUB_ACTIONS") == "true" {
-			dsn = "postgres://postgres:postgres@localhost:5432/memo_db_test?sslmode=disable"
-		} else if os.Getenv("DOCKER_CONTAINER") == "true" {
-			// Docker環境内の場合
-			dsn = "postgres://memo_user:memo_password@db:5432/memo_db_test?sslmode=disable"
-		} else {
-			// ローカル開発環境
-			dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
-		}
+	if dsn != "" {
+		return dsn
+	}
+
+	// GitHub Actions環境かチェック
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		// GitHub ActionsではPostgreSQLサービスを使用
+		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+	} else if os.Getenv("DOCKER_CONTAINER") == "true" {
+		// Docker環境内の場合
+		dsn = "postgres://memo_user:memo_password@db:5432/memo_db?sslmode=disable"
+	} else {
+		// ローカル開発環境
+		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
 	}
 
 	if dsn == "" {
@@ -119,6 +122,21 @@ func TestIndexesExist(t *testing.T) {
 		var exists bool
 		err := db.QueryRow(query, index).Scan(&exists)
 		assert.NoError(t, err, "インデックス存在確認クエリに失敗: %s", index)
+		if !exists {
+			t.Logf("Missing index: %s", index)
+			// デバッグ: 既存のインデックス一覧を表示
+			rows, err := db.Query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' ORDER BY indexname")
+			if err == nil {
+				t.Log("Available indexes:")
+				for rows.Next() {
+					var indexName string
+					if rows.Scan(&indexName) == nil {
+						t.Logf("  - %s", indexName)
+					}
+				}
+				rows.Close()
+			}
+		}
 		assert.True(t, exists, "インデックスが存在しません: %s", index)
 	}
 }
@@ -158,7 +176,11 @@ func TestDatabaseSchema(t *testing.T) {
 	}
 
 	// memosテーブルの基本カラム確認
-	memoColumns := []string{"id", "title", "content", "user_id", "status", "created_at", "updated_at"}
+	memoColumns := []string{
+		"id", "title", "content", "category", "tags", 
+		"priority", "status", "user_id", "is_public",
+		"created_at", "updated_at", "completed_at",
+	}
 	for _, column := range memoColumns {
 		query := `
 			SELECT EXISTS (
