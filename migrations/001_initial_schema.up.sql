@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    github_id BIGINT UNIQUE,
+    github_username VARCHAR(255),
+    avatar_url TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    created_ip INET NOT NULL DEFAULT '127.0.0.1',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -38,6 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_memos_priority ON memos(priority);
 CREATE INDEX IF NOT EXISTS idx_memos_tags ON memos USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
 
 -- 更新日時自動更新のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()

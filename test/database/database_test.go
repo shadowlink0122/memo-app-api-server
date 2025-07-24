@@ -99,9 +99,13 @@ func TestIndexesExist(t *testing.T) {
 	indexes := []string{
 		"idx_memos_user_id",
 		"idx_memos_created_at",
+		"idx_memos_status",
+		"idx_memos_priority",
 		"idx_memos_tags",
 		"idx_users_username",
 		"idx_users_email",
+		"idx_users_github_id",
+		"idx_users_is_active",
 	}
 
 	for _, index := range indexes {
@@ -133,7 +137,12 @@ func TestDatabaseSchema(t *testing.T) {
 	defer db.Close()
 
 	// usersテーブルの基本カラム確認
-	userColumns := []string{"id", "username", "email", "password_hash", "created_at", "updated_at"}
+	userColumns := []string{
+		"id", "username", "email", "password_hash", 
+		"github_id", "github_username", "avatar_url", 
+		"is_active", "last_login_at", "created_ip",
+		"created_at", "updated_at",
+	}
 	for _, column := range userColumns {
 		query := `
 			SELECT EXISTS (

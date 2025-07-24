@@ -8,6 +8,8 @@ DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- インデックス削除
+DROP INDEX IF EXISTS idx_users_is_active;
+DROP INDEX IF EXISTS idx_users_github_id;
 DROP INDEX IF EXISTS idx_users_email;
 DROP INDEX IF EXISTS idx_users_username;
 DROP INDEX IF EXISTS idx_memos_tags;
