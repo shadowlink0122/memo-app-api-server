@@ -17,6 +17,26 @@ type MockMemoRepository struct {
 	mock.Mock
 }
 
+// Archive implements repository.MemoRepositoryInterface.
+func (m *MockMemoRepository) Archive(ctx context.Context, id int) error {
+	panic("unimplemented")
+}
+
+// PermanentDelete implements repository.MemoRepositoryInterface.
+func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
+	panic("unimplemented")
+}
+
+// Restore implements repository.MemoRepositoryInterface.
+func (m *MockMemoRepository) Restore(ctx context.Context, id int) error {
+	panic("unimplemented")
+}
+
+// Search implements repository.MemoRepositoryInterface.
+func (m *MockMemoRepository) Search(ctx context.Context, query string, filter models.MemoFilter) ([]models.Memo, int, error) {
+	panic("unimplemented")
+}
+
 func (m *MockMemoRepository) Create(ctx context.Context, req *models.CreateMemoRequest) (*models.Memo, error) {
 	args := m.Called(ctx, req)
 	return args.Get(0).(*models.Memo), args.Error(1)

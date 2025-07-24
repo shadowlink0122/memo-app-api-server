@@ -17,6 +17,11 @@ type MockMemoRepository struct {
 	mock.Mock
 }
 
+// PermanentDelete implements domain.MemoRepository.
+func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
+	panic("unimplemented")
+}
+
 func (m *MockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
 	args := m.Called(ctx, memo)
 	if args.Get(0) == nil {

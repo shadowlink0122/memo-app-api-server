@@ -119,6 +119,11 @@ type MockMemoUsecase struct {
 	mock.Mock
 }
 
+// PermanentDeleteMemo implements usecase.MemoUsecase.
+func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
+	panic("unimplemented")
+}
+
 func (m *MockMemoUsecase) CreateMemo(ctx context.Context, req usecase.CreateMemoRequest) (*domain.Memo, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) == nil {

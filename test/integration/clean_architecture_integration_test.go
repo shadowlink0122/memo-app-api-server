@@ -268,7 +268,7 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusOK, w.Code)
-	
+
 	// レスポンスをパース
 	var archivedMemo domain.Memo
 	err = json.Unmarshal(w.Body.Bytes(), &archivedMemo)

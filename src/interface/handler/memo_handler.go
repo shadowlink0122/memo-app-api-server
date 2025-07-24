@@ -158,6 +158,12 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		Limit:    filterDTO.Limit,
 	}
 
+	// 通常のListMemosではアーカイブされたメモを除外
+	// ステータスが明示的に指定されていない場合はactiveのみ取得
+	if sanitizedFilter.Status == "" {
+		sanitizedFilter.Status = "active"
+	}
+
 	filter := h.toDomainFilter(sanitizedFilter)
 
 	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), filter)
@@ -171,6 +177,74 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 
 		c.JSON(status, ErrorResponseDTO{
 			Error:   "Failed to get memos",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	response := MemoListResponseDTO{
+		Memos:      h.toMemoResponseDTOs(memos),
+		Total:      total,
+		Page:       filter.Page,
+		Limit:      filter.Limit,
+		TotalPages: (total + filter.Limit - 1) / filter.Limit,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ListArchivedMemos retrieves archived memos with filtering
+func (h *MemoHandler) ListArchivedMemos(c *gin.Context) {
+	var filterDTO MemoFilterDTO
+	if err := c.ShouldBindQuery(&filterDTO); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Invalid query parameters",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// アーカイブメモ専用：ステータスを強制的にarchivedに設定
+	filterDTO.Status = "archived"
+
+	// フィルターのバリデーション
+	if err := h.validator.Validate(&filterDTO); err != nil {
+		h.logger.WithError(err).Error("フィルターバリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Filter validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// フィルター値のサニタイゼーション
+	sanitizedFilter := MemoFilterDTO{
+		Category: h.validator.SanitizeInput(filterDTO.Category),
+		Status:   "archived", // 強制的にarchived
+		Priority: filterDTO.Priority,
+		Search:   h.validator.SanitizeInput(filterDTO.Search),
+		Tags:     h.validator.SanitizeInput(filterDTO.Tags),
+		Page:     filterDTO.Page,
+		Limit:    filterDTO.Limit,
+	}
+
+	filter := h.toDomainFilter(sanitizedFilter)
+
+	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), filter)
+	if err != nil {
+		h.logger.WithError(err).Error("アーカイブメモリストの取得に失敗")
+
+		status := http.StatusInternalServerError
+		if err == usecase.ErrInvalidPage || err == usecase.ErrInvalidLimit {
+			status = http.StatusBadRequest
+		}
+
+		c.JSON(status, ErrorResponseDTO{
+			Error:   "Failed to get archived memos",
 			Message: err.Error(),
 		})
 		return
@@ -440,6 +514,12 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 		Tags:     h.validator.SanitizeInput(filterDTO.Tags),
 		Page:     filterDTO.Page,
 		Limit:    filterDTO.Limit,
+	}
+
+	// 検索でもアーカイブされたメモを除外
+	// ステータスが明示的に指定されていない場合はactiveのみ検索
+	if sanitizedFilter.Status == "" {
+		sanitizedFilter.Status = "active"
 	}
 
 	query := sanitizedFilter.Search

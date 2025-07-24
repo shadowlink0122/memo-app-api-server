@@ -29,6 +29,12 @@ type MockMemoUsecase struct {
 	mock.Mock
 }
 
+// PermanentDeleteMemo implements usecase.MemoUsecase.
+func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func (m *MockMemoUsecase) CreateMemo(ctx context.Context, req usecase.CreateMemoRequest) (*domain.Memo, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) == nil {
@@ -93,6 +99,7 @@ func setupTestRouter(mockUsecase *MockMemoUsecase) *gin.Engine {
 		api.GET("/:id", memoHandler.GetMemo)
 		api.PUT("/:id", memoHandler.UpdateMemo)
 		api.DELETE("/:id", memoHandler.DeleteMemo)
+		api.DELETE("/:id/permanent", memoHandler.PermanentDeleteMemo)
 		api.PATCH("/:id/archive", memoHandler.ArchiveMemo)
 		api.PATCH("/:id/restore", memoHandler.RestoreMemo)
 		api.GET("/search", memoHandler.SearchMemos)
@@ -455,6 +462,56 @@ func TestMemoHandler_SearchMemos(t *testing.T) {
 			router := setupTestRouter(mockUsecase)
 
 			req, _ := http.NewRequest("GET", "/api/memos/search"+tt.queryParams, nil)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			mockUsecase.AssertExpectations(t)
+		})
+	}
+}
+
+func TestMemoHandler_PermanentDeleteMemo(t *testing.T) {
+	tests := []struct {
+		name           string
+		memoID         string
+		mockSetup      func(*MockMemoUsecase)
+		expectedStatus int
+	}{
+		{
+			name:   "successful permanent delete",
+			memoID: "1",
+			mockSetup: func(m *MockMemoUsecase) {
+				m.On("PermanentDeleteMemo", mock.Anything, 1).Return(nil)
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "invalid memo ID",
+			memoID:         "invalid",
+			mockSetup:      func(m *MockMemoUsecase) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "memo not found",
+			memoID: "999",
+			mockSetup: func(m *MockMemoUsecase) {
+				m.On("PermanentDeleteMemo", mock.Anything, 999).Return(usecase.ErrMemoNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUsecase := new(MockMemoUsecase)
+			tt.mockSetup(mockUsecase)
+
+			router := setupTestRouter(mockUsecase)
+
+			req, _ := http.NewRequest("DELETE", "/api/memos/"+tt.memoID+"/permanent", nil)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
