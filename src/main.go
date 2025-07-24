@@ -12,11 +12,14 @@ import (
 
 	"memo-app/src/config"
 	"memo-app/src/database"
+	"memo-app/src/handlers"
 	"memo-app/src/infrastructure/repository"
 	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	userRepo "memo-app/src/repository"
 	"memo-app/src/routes"
+	"memo-app/src/service"
 	"memo-app/src/storage"
 	"memo-app/src/usecase"
 
@@ -64,6 +67,12 @@ func main() {
 	memoRepo := repository.NewMemoRepository(db, logger.Log)
 	memoUsecase := usecase.NewMemoUsecase(memoRepo)
 	memoHandler := handler.NewMemoHandler(memoUsecase, logger.Log)
+
+	// 認証関連のコンポーネントを初期化
+	userRepository := userRepo.NewUserRepository(db.DB)
+	jwtService := service.NewJWTService(cfg)
+	authService := service.NewAuthService(userRepository, jwtService, cfg)
+	authHandler := handlers.NewAuthHandler(authService)
 
 	// S3アップローダーを初期化（設定が有効な場合）
 	var uploader *storage.LogUploader
@@ -196,7 +205,7 @@ func main() {
 	// }
 
 	// メモAPIのルートを設定
-	routes.SetupRoutes(r, memoHandler)
+	routes.SetupRoutes(r, memoHandler, authHandler)
 
 	// グレースフルシャットダウンの設定
 	go func() {

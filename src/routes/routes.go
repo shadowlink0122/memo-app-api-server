@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"memo-app/src/handlers"
 	"memo-app/src/interface/handler"
 	"memo-app/src/middleware"
 
@@ -8,23 +9,22 @@ import (
 )
 
 // SetupRoutes sets up all API routes
-func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler) {
+func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *handlers.AuthHandler) {
 	// パブリックルートのグループ化
 	api := r.Group("/api")
 	api.Use(middleware.LoggerMiddleware())
 	api.Use(middleware.CORSMiddleware())
 	api.Use(middleware.RateLimitMiddleware())
 
-	// TODO: 認証システムを完全に統合後に有効化
 	// 認証関連のパブリックルート
-	// auth := api.Group("/auth")
-	// {
-	//     auth.POST("/register", authHandler.Register)
-	//     auth.POST("/login", authHandler.Login)
-	//     auth.POST("/refresh", authHandler.RefreshToken)
-	//     auth.GET("/github/url", authHandler.GetGitHubAuthURL)
-	//     auth.GET("/github/callback", authHandler.GitHubCallback)
-	// }
+	auth := api.Group("/auth")
+	{
+		auth.POST("/register", authHandler.Register)
+		auth.POST("/login", authHandler.Login)
+		auth.POST("/refresh", authHandler.RefreshToken)
+		auth.GET("/github/url", authHandler.GetGitHubAuthURL)
+		auth.GET("/github/callback", authHandler.GitHubCallback)
+	}
 
 	// 一時的に認証なしでメモAPIを利用可能にする
 	memos := api.Group("/memos")
