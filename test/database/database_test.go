@@ -138,8 +138,8 @@ func TestDatabaseSchema(t *testing.T) {
 
 	// usersテーブルの基本カラム確認
 	userColumns := []string{
-		"id", "username", "email", "password_hash", 
-		"github_id", "github_username", "avatar_url", 
+		"id", "username", "email", "password_hash",
+		"github_id", "github_username", "avatar_url",
 		"is_active", "last_login_at", "created_ip",
 		"created_at", "updated_at",
 	}
