@@ -61,6 +61,10 @@ func TestAuthenticationIntegrationLive(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
+		// デバッグ: レスポンスボディを出力
+		t.Logf("Status Code: %d", w.Code)
+		t.Logf("Response Body: %s", w.Body.String())
+
 		require.Equal(t, http.StatusCreated, w.Code)
 
 		var registerResp struct {
@@ -158,26 +162,56 @@ func TestAuthenticationIntegrationLive(t *testing.T) {
 
 // Docker環境用の設定
 func setupLiveTestConfig() *config.Config {
-	return &config.Config{
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "memo_user",
-			Password: "memo_password",
-			DBName:   "memo_db",
-			SSLMode:  "disable",
-		},
-		Auth: config.AuthConfig{
-			JWTSecret:          "test-jwt-secret-key-for-testing",
-			JWTExpiresIn:       24 * time.Hour,
-			RefreshExpiresIn:   7 * 24 * time.Hour,
-			GitHubClientID:     "test-github-client-id",
-			GitHubClientSecret: "test-github-client-secret",
-			GitHubRedirectURL:  "http://localhost:8000/api/auth/github/callback",
-			MaxAccountsPerIP:   3,
-			IPCooldownPeriod:   24 * time.Hour,
-		},
+	// テスト用の設定を読み込み（環境変数を考慮）
+	cfg := config.LoadConfig()
+	
+	// テスト用のデフォルト値を設定
+	if cfg.Database.Host == "" {
+		cfg.Database.Host = "localhost"
 	}
+	if cfg.Database.Port == 0 {
+		cfg.Database.Port = 5433 // テストデータベースのデフォルトポート
+	}
+	if cfg.Database.User == "" {
+		cfg.Database.User = "memo_user"
+	}
+	if cfg.Database.Password == "" {
+		cfg.Database.Password = "memo_password"
+	}
+	if cfg.Database.DBName == "" {
+		cfg.Database.DBName = "memo_db"
+	}
+	if cfg.Database.SSLMode == "" {
+		cfg.Database.SSLMode = "disable"
+	}
+
+	// Authの設定もテスト用の値を設定
+	if cfg.Auth.JWTSecret == "" {
+		cfg.Auth.JWTSecret = "test-jwt-secret-key-for-testing"
+	}
+	if cfg.Auth.JWTExpiresIn == 0 {
+		cfg.Auth.JWTExpiresIn = 24 * time.Hour
+	}
+	if cfg.Auth.RefreshExpiresIn == 0 {
+		cfg.Auth.RefreshExpiresIn = 7 * 24 * time.Hour
+	}
+	if cfg.Auth.GitHubClientID == "" {
+		cfg.Auth.GitHubClientID = "test-github-client-id"
+	}
+	if cfg.Auth.GitHubClientSecret == "" {
+		cfg.Auth.GitHubClientSecret = "test-github-client-secret"
+	}
+	if cfg.Auth.GitHubRedirectURL == "" {
+		cfg.Auth.GitHubRedirectURL = "http://localhost:8000/api/auth/github/callback"
+	}
+	if cfg.Auth.MaxAccountsPerIP == 0 {
+		cfg.Auth.MaxAccountsPerIP = 3
+	}
+	if cfg.Auth.IPCooldownPeriod == 0 {
+		cfg.Auth.IPCooldownPeriod = 24 * time.Hour
+	}
+
+	return cfg
 }
 
 func setupLiveTestDatabase(t *testing.T, cfg *config.Config) *sql.DB {

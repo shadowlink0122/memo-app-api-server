@@ -6,16 +6,16 @@ import (
 
 // Memo represents a memo domain entity
 type Memo struct {
-	ID          int
-	Title       string
-	Content     string
-	Category    string
-	Tags        []string
-	Priority    Priority
-	Status      Status
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	CompletedAt *time.Time
+	ID          int        `json:"id"`
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Category    string     `json:"category"`
+	Tags        []string   `json:"tags"`
+	Priority    Priority   `json:"priority"`
+	Status      Status     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	CompletedAt *time.Time `json:"completed_at"`
 }
 
 // Priority represents memo priority levels

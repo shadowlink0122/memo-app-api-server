@@ -13,4 +13,8 @@ type MemoRepositoryInterface interface {
 	List(ctx context.Context, filter *models.MemoFilter) (*models.MemoListResponse, error)
 	Update(ctx context.Context, id int, req *models.UpdateMemoRequest) (*models.Memo, error)
 	Delete(ctx context.Context, id int) error
+	PermanentDelete(ctx context.Context, id int) error
+	Archive(ctx context.Context, id int) error
+	Restore(ctx context.Context, id int) error
+	Search(ctx context.Context, query string, filter models.MemoFilter) ([]models.Memo, int, error)
 }

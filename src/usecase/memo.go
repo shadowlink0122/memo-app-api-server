@@ -45,6 +45,7 @@ type MemoUsecase interface {
 	ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error)
 	UpdateMemo(ctx context.Context, id int, req UpdateMemoRequest) (*domain.Memo, error)
 	DeleteMemo(ctx context.Context, id int) error
+	PermanentDeleteMemo(ctx context.Context, id int) error
 	ArchiveMemo(ctx context.Context, id int) error
 	RestoreMemo(ctx context.Context, id int) error
 	SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error)
@@ -146,9 +147,14 @@ func (u *memoUsecase) UpdateMemo(ctx context.Context, id int, req UpdateMemoRequ
 	return u.memoRepo.Update(ctx, id, &updatedMemo)
 }
 
-// DeleteMemo deletes a memo
+// DeleteMemo handles memo deletion (archives active memos, permanently deletes archived ones)
 func (u *memoUsecase) DeleteMemo(ctx context.Context, id int) error {
 	return u.memoRepo.Delete(ctx, id)
+}
+
+// PermanentDeleteMemo permanently deletes a memo from database
+func (u *memoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
+	return u.memoRepo.PermanentDelete(ctx, id)
 }
 
 // ArchiveMemo archives a memo

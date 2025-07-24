@@ -278,7 +278,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 	c.JSON(http.StatusOK, h.toMemoResponseDTO(memo))
 }
 
-// DeleteMemo deletes a memo
+// DeleteMemo deletes a memo (archives active memos, permanently deletes archived ones)
 func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
@@ -307,6 +307,38 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 	}
 
 	h.logger.WithField("memo_id", id).Info("メモを削除しました")
+	c.Status(http.StatusNoContent)
+}
+
+// PermanentDeleteMemo permanently deletes a memo from database
+func (h *MemoHandler) PermanentDeleteMemo(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := h.validator.ValidateID(idStr)
+	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Invalid memo ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	err = h.memoUsecase.PermanentDeleteMemo(c.Request.Context(), id)
+	if err != nil {
+		h.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
+
+		status := http.StatusInternalServerError
+		if err == usecase.ErrMemoNotFound {
+			status = http.StatusNotFound
+		}
+
+		c.JSON(status, ErrorResponseDTO{
+			Error: "Failed to permanently delete memo",
+		})
+		return
+	}
+
+	h.logger.WithField("memo_id", id).Info("メモを完全削除しました")
 	c.Status(http.StatusNoContent)
 }
 

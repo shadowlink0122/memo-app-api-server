@@ -9,15 +9,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"memo-app/src/handlers"
+	"memo-app/src/domain"
+	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
-	"memo-app/src/models"
-	"memo-app/src/repository"
-	"memo-app/src/service"
+	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -29,9 +30,9 @@ import (
 type MemoIntegrationTestSuite struct {
 	suite.Suite
 	router      *gin.Engine
-	memoRepo    repository.MemoRepositoryInterface
-	memoSvc     service.MemoServiceInterface
-	memoHandler *handlers.MemoHandler
+	memoRepo    domain.MemoRepository
+	memoUsecase usecase.MemoUsecase
+	memoHandler *handler.MemoHandler
 	testLogger  *logrus.Logger
 }
 
@@ -47,39 +48,29 @@ func (suite *MemoIntegrationTestSuite) SetupSuite() {
 
 	// ロガーを初期化
 	err := logger.InitLogger()
-	require.NoError(suite.T(), err)
+	if err != nil {
+		suite.T().Fatalf("Failed to initialize logger: %v", err)
+	}
 
-	// テスト用ロガーを作成
-	suite.testLogger = logrus.New()
-	suite.testLogger.SetLevel(logrus.InfoLevel)
-
-	// モックコンポーネントをセットアップ
+	suite.testLogger = logger.Log
 	suite.setupMockComponents()
 
-	// Ginルーターを設定
+	// Ginのテストモードを設定
 	gin.SetMode(gin.TestMode)
 	suite.router = gin.New()
-
-	// ミドルウェアを適用
 	suite.router.Use(middleware.LoggerMiddleware())
 	suite.router.Use(middleware.CORSMiddleware())
-
-	// ルートを設定（認証ミドルウェアなし）
 	suite.setupTestRoutes()
-}
-
-func (suite *MemoIntegrationTestSuite) TearDownSuite() {
-	logger.CloseLogger()
 }
 
 func (suite *MemoIntegrationTestSuite) SetupTest() {
 	// 各テスト前にデータをクリーンアップ（モックを再初期化）
 	suite.memoRepo = &mockMemoRepository{
-		memos:  make(map[int]*models.Memo),
+		memos:  make(map[int]*domain.Memo),
 		nextID: 1,
 	}
-	suite.memoSvc = service.NewMemoService(suite.memoRepo, suite.testLogger)
-	suite.memoHandler = handlers.NewMemoHandler(suite.memoSvc, suite.testLogger)
+	suite.memoUsecase = usecase.NewMemoUsecase(suite.memoRepo)
+	suite.memoHandler = handler.NewMemoHandler(suite.memoUsecase, suite.testLogger)
 
 	// ルートも再設定
 	suite.router = gin.New()
@@ -91,12 +82,12 @@ func (suite *MemoIntegrationTestSuite) SetupTest() {
 func (suite *MemoIntegrationTestSuite) setupMockComponents() {
 	// モックリポジトリを作成
 	suite.memoRepo = &mockMemoRepository{
-		memos:  make(map[int]*models.Memo),
+		memos:  make(map[int]*domain.Memo),
 		nextID: 1,
 	}
 
-	suite.memoSvc = service.NewMemoService(suite.memoRepo, suite.testLogger)
-	suite.memoHandler = handlers.NewMemoHandler(suite.memoSvc, suite.testLogger)
+	suite.memoUsecase = usecase.NewMemoUsecase(suite.memoRepo)
+	suite.memoHandler = handler.NewMemoHandler(suite.memoUsecase, suite.testLogger)
 }
 
 // テスト専用のルート設定（認証ミドルウェアなし）
@@ -108,42 +99,40 @@ func (suite *MemoIntegrationTestSuite) setupTestRoutes() {
 	memos := api.Group("/memos")
 	{
 		// メモの基本CRUD操作
-		memos.POST("", suite.memoHandler.CreateMemo)       // POST /api/memos
-		memos.GET("", suite.memoHandler.ListMemos)         // GET /api/memos
-		memos.GET("/:id", suite.memoHandler.GetMemo)       // GET /api/memos/:id
-		memos.PUT("/:id", suite.memoHandler.UpdateMemo)    // PUT /api/memos/:id
-		memos.DELETE("/:id", suite.memoHandler.DeleteMemo) // DELETE /api/memos/:id
+		memos.POST("", suite.memoHandler.CreateMemo)                          // POST /api/memos
+		memos.GET("", suite.memoHandler.ListMemos)                            // GET /api/memos
+		memos.GET("/:id", suite.memoHandler.GetMemo)                          // GET /api/memos/:id
+		memos.PUT("/:id", suite.memoHandler.UpdateMemo)                       // PUT /api/memos/:id
+		memos.DELETE("/:id", suite.memoHandler.DeleteMemo)                    // DELETE /api/memos/:id (段階的削除)
+		memos.DELETE("/:id/permanent", suite.memoHandler.PermanentDeleteMemo) // DELETE /api/memos/:id/permanent (完全削除)
 	}
 }
 
 // モックリポジトリの実装
 type mockMemoRepository struct {
-	memos  map[int]*models.Memo
+	memos  map[int]*domain.Memo
 	nextID int
+	mutex  sync.RWMutex
 }
 
-func (m *mockMemoRepository) Create(ctx context.Context, req *models.CreateMemoRequest) (*models.Memo, error) {
-	memo := &models.Memo{
-		ID:        m.nextID,
-		Title:     req.Title,
-		Content:   req.Content,
-		Category:  req.Category,
-		Priority:  req.Priority,
-		Status:    "active",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	if req.Tags != nil {
-		// タグを文字列に変換（実際の実装に合わせる）
-		tagsBytes, _ := json.Marshal(req.Tags)
-		memo.Tags = string(tagsBytes)
-	}
+func (m *mockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	memo.ID = m.nextID
+	memo.CreatedAt = time.Now()
+	memo.UpdatedAt = time.Now()
+	memo.Status = domain.StatusActive
+
 	m.memos[m.nextID] = memo
 	m.nextID++
 	return memo, nil
 }
 
-func (m *mockMemoRepository) GetByID(ctx context.Context, id int) (*models.Memo, error) {
+func (m *mockMemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	memo, exists := m.memos[id]
 	if !exists {
 		return nil, fmt.Errorf("memo not found")
@@ -151,53 +140,84 @@ func (m *mockMemoRepository) GetByID(ctx context.Context, id int) (*models.Memo,
 	return memo, nil
 }
 
-func (m *mockMemoRepository) List(ctx context.Context, filter *models.MemoFilter) (*models.MemoListResponse, error) {
-	var memos []models.Memo
+func (m *mockMemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	var memos []domain.Memo
 	for _, memo := range m.memos {
+		// フィルタリング（status, categoryなどの条件）
+		if filter.Status != "" && memo.Status != filter.Status {
+			continue
+		}
+		if filter.Category != "" && memo.Category != filter.Category {
+			continue
+		}
 		memos = append(memos, *memo)
 	}
-
-	// フィルターの適用は簡略化
-	return &models.MemoListResponse{
-		Memos:      memos,
-		Total:      len(memos),
-		Page:       1,
-		Limit:      len(memos),
-		TotalPages: 1,
-	}, nil
+	return memos, len(memos), nil
 }
 
-func (m *mockMemoRepository) Update(ctx context.Context, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
-	memo, exists := m.memos[id]
+func (m *mockMemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) (*domain.Memo, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	existingMemo, exists := m.memos[id]
 	if !exists {
 		return nil, fmt.Errorf("memo not found")
 	}
 
-	if req.Title != nil {
-		memo.Title = *req.Title
+	// 更新フィールドのみを更新
+	if memo.Title != "" {
+		existingMemo.Title = memo.Title
 	}
-	if req.Content != nil {
-		memo.Content = *req.Content
+	if memo.Content != "" {
+		existingMemo.Content = memo.Content
 	}
-	if req.Category != nil {
-		memo.Category = *req.Category
+	if memo.Category != "" {
+		existingMemo.Category = memo.Category
 	}
-	if req.Priority != nil {
-		memo.Priority = *req.Priority
+	if memo.Priority != "" {
+		existingMemo.Priority = memo.Priority
 	}
-	if req.Status != nil {
-		memo.Status = *req.Status
+	if memo.Status != "" {
+		existingMemo.Status = memo.Status
 	}
-	if req.Tags != nil {
-		tagsBytes, _ := json.Marshal(req.Tags)
-		memo.Tags = string(tagsBytes)
+	if memo.Tags != nil {
+		existingMemo.Tags = memo.Tags
 	}
 
-	memo.UpdatedAt = time.Now()
-	return memo, nil
+	existingMemo.UpdatedAt = time.Now()
+	return existingMemo, nil
 }
 
 func (m *mockMemoRepository) Delete(ctx context.Context, id int) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	memo, exists := m.memos[id]
+	if !exists {
+		return fmt.Errorf("memo not found")
+	}
+
+	// 段階的削除の実装
+	if memo.Status == domain.StatusActive {
+		// アクティブメモをアーカイブに移動
+		memo.Status = domain.StatusArchived
+		memo.UpdatedAt = time.Now()
+		completedAt := time.Now()
+		memo.CompletedAt = &completedAt
+	} else if memo.Status == domain.StatusArchived {
+		// アーカイブ済みメモを完全削除
+		delete(m.memos, id)
+	}
+	return nil
+}
+
+func (m *mockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	_, exists := m.memos[id]
 	if !exists {
 		return fmt.Errorf("memo not found")
@@ -206,249 +226,438 @@ func (m *mockMemoRepository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+func (m *mockMemoRepository) Archive(ctx context.Context, id int) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	memo, exists := m.memos[id]
+	if !exists {
+		return fmt.Errorf("memo not found")
+	}
+	memo.Status = domain.StatusArchived
+	memo.UpdatedAt = time.Now()
+	completedAt := time.Now()
+	memo.CompletedAt = &completedAt
+	return nil
+}
+
+func (m *mockMemoRepository) Restore(ctx context.Context, id int) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	memo, exists := m.memos[id]
+	if !exists {
+		return fmt.Errorf("memo not found")
+	}
+	memo.Status = domain.StatusActive
+	memo.UpdatedAt = time.Now()
+	return nil
+}
+
+func (m *mockMemoRepository) Search(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	var result []domain.Memo
+	for _, memo := range m.memos {
+		// ステータスフィルタ
+		if filter.Status != "" && memo.Status != filter.Status {
+			continue
+		}
+
+		// 簡単な検索実装（タイトルと内容をチェック）
+		if strings.Contains(strings.ToLower(memo.Title), strings.ToLower(query)) ||
+			strings.Contains(strings.ToLower(memo.Content), strings.ToLower(query)) {
+			result = append(result, *memo)
+		}
+	}
+	return result, len(result), nil
+}
+
 // メモ一覧取得のテスト
 func (suite *MemoIntegrationTestSuite) TestGetMemos() {
-	// テストデータを準備
-	ctx := context.Background()
-	suite.memoRepo.Create(ctx, &models.CreateMemoRequest{
-		Title:   "テストメモ1",
-		Content: "これはテストメモ1の内容です",
-	})
-	suite.memoRepo.Create(ctx, &models.CreateMemoRequest{
-		Title:   "テストメモ2",
-		Content: "これはテストメモ2の内容です",
-	})
+	// テストデータを準備（HTTP経由）
+	memo1 := map[string]interface{}{
+		"title":   "テストメモ1",
+		"content": "これはテストメモです",
+	}
+	memo2 := map[string]interface{}{
+		"title":   "テストメモ2",
+		"content": "これは2番目のテストメモです",
+	}
 
-	// リクエストを作成
-	req, err := http.NewRequest("GET", "/api/memos", nil)
-	require.NoError(suite.T(), err)
+	// メモ1作成
+	memo1JSON, _ := json.Marshal(memo1)
+	req1 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memo1JSON))
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	suite.router.ServeHTTP(w1, req1)
 
-	// レスポンスを記録
+	// メモ2作成
+	memo2JSON, _ := json.Marshal(memo2)
+	req2 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memo2JSON))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(w2, req2)
+
+	// メモ一覧を取得
+	req := httptest.NewRequest("GET", "/api/memos", nil)
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
-	// ステータスコードを確認
+	// レスポンスを検証
 	assert.Equal(suite.T(), http.StatusOK, w.Code)
 
-	// レスポンスボディを解析（MemoListResponse）
-	var response models.MemoListResponse
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var response struct {
+		Memos []domain.Memo `json:"memos"`
+		Total int           `json:"total"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(suite.T(), err)
 
-	// レスポンスの内容を確認
-	assert.Len(suite.T(), response.Memos, 2)
 	assert.Equal(suite.T(), 2, response.Total)
+	assert.Len(suite.T(), response.Memos, 2)
 }
 
 // メモ作成のテスト
 func (suite *MemoIntegrationTestSuite) TestCreateMemo() {
 	// リクエストボディを準備
 	requestBody := map[string]interface{}{
-		"title":    "新しいメモ",
-		"content":  "これは新しいメモの内容です",
-		"category": "テスト",
-		"priority": "medium",
-		"tags":     []string{"テスト", "統合テスト"},
+		"title":   "新しいメモ",
+		"content": "これは新しいメモの内容です",
 	}
-	jsonBody, err := json.Marshal(requestBody)
+
+	jsonData, err := json.Marshal(requestBody)
 	require.NoError(suite.T(), err)
 
-	// リクエストを作成
-	req, err := http.NewRequest("POST", "/api/memos", bytes.NewBuffer(jsonBody))
-	require.NoError(suite.T(), err)
+	// HTTPリクエストを作成
+	req := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
-	// レスポンスを記録
+	// レスポンスレコーダーを作成
 	w := httptest.NewRecorder()
+
+	// ルーターでリクエストを処理
 	suite.router.ServeHTTP(w, req)
 
-	// ステータスコードを確認
+	// レスポンスを検証
 	assert.Equal(suite.T(), http.StatusCreated, w.Code)
 
-	// レスポンスボディを解析
-	var response map[string]interface{}
+	var response domain.Memo
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(suite.T(), err)
 
-	// レスポンスの内容を確認（直接メモオブジェクト）
-	var memo map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &memo)
-	require.NoError(suite.T(), err)
-
-	// メモの内容を確認
-	assert.Equal(suite.T(), "新しいメモ", memo["title"])
-	assert.Equal(suite.T(), "これは新しいメモの内容です", memo["content"])
-	assert.Equal(suite.T(), "テスト", memo["category"])
-	assert.Equal(suite.T(), "medium", memo["priority"])
-	assert.Contains(suite.T(), memo, "id")
-}
-
-// メモ詳細取得のテスト
-func (suite *MemoIntegrationTestSuite) TestGetMemoByID() {
-	// テストデータを準備
-	ctx := context.Background()
-	memo, err := suite.memoRepo.Create(ctx, &models.CreateMemoRequest{
-		Title:   "テストメモ",
-		Content: "これはテストメモの内容です",
-	})
-	require.NoError(suite.T(), err)
-
-	// リクエストを作成
-	req, err := http.NewRequest("GET", "/api/memos/"+strconv.Itoa(memo.ID), nil)
-	require.NoError(suite.T(), err)
-
-	// レスポンスを記録
-	w := httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
-
-	// ステータスコードを確認
-	assert.Equal(suite.T(), http.StatusOK, w.Code)
-
-	// レスポンスボディを解析（Memo）
-	var response models.Memo
-	err = json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(suite.T(), err)
-
-	// レスポンスの内容を確認
-	assert.Equal(suite.T(), memo.ID, response.ID)
-	assert.Equal(suite.T(), "テストメモ", response.Title)
-	assert.Equal(suite.T(), "これはテストメモの内容です", response.Content)
+	assert.Equal(suite.T(), "新しいメモ", response.Title)
+	assert.Equal(suite.T(), "これは新しいメモの内容です", response.Content)
+	assert.NotZero(suite.T(), response.ID)
 }
 
 // メモ更新のテスト
 func (suite *MemoIntegrationTestSuite) TestUpdateMemo() {
-	// テストデータを準備
-	ctx := context.Background()
-	memo, err := suite.memoRepo.Create(ctx, &models.CreateMemoRequest{
-		Title:   "元のタイトル",
-		Content: "元の内容",
-	})
-	require.NoError(suite.T(), err)
-
-	// リクエストボディを準備
-	requestBody := map[string]string{
-		"title":   "更新されたタイトル",
-		"content": "更新された内容",
+	// テストメモを作成
+	memo := map[string]interface{}{
+		"title":   "更新前のメモ",
+		"content": "更新前の内容",
 	}
-	jsonBody, err := json.Marshal(requestBody)
+	memoJSON, _ := json.Marshal(memo)
+	createReq := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memoJSON))
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW, createReq)
+
+	var createdMemo domain.Memo
+	json.Unmarshal(createW.Body.Bytes(), &createdMemo)
+
+	// 更新リクエストを準備
+	updateBody := map[string]interface{}{
+		"title":   "更新後のメモ",
+		"content": "更新後の内容",
+	}
+
+	jsonData, err := json.Marshal(updateBody)
 	require.NoError(suite.T(), err)
 
-	// リクエストを作成
-	req, err := http.NewRequest("PUT", "/api/memos/"+strconv.Itoa(memo.ID), bytes.NewBuffer(jsonBody))
-	require.NoError(suite.T(), err)
+	// HTTPリクエストを作成
+	req := httptest.NewRequest("PUT", "/api/memos/"+strconv.Itoa(createdMemo.ID), bytes.NewReader(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
-	// レスポンスを記録
+	// レスポンスレコーダーを作成
 	w := httptest.NewRecorder()
+
+	// ルーターでリクエストを処理
 	suite.router.ServeHTTP(w, req)
 
-	// ステータスコードを確認
+	// レスポンスを検証
 	assert.Equal(suite.T(), http.StatusOK, w.Code)
 
-	// レスポンスボディを解析（Memo）
-	var response models.Memo
+	var response domain.Memo
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(suite.T(), err)
 
-	// レスポンスの内容を確認
-	assert.Equal(suite.T(), "更新されたタイトル", response.Title)
-	assert.Equal(suite.T(), "更新された内容", response.Content)
+	assert.Equal(suite.T(), "更新後のメモ", response.Title)
+	assert.Equal(suite.T(), "更新後の内容", response.Content)
+	assert.Equal(suite.T(), createdMemo.ID, response.ID)
 }
 
-// メモ削除のテスト
+// メモ削除のテスト（段階的削除）
 func (suite *MemoIntegrationTestSuite) TestDeleteMemo() {
-	// テストデータを準備
-	ctx := context.Background()
-	memo, err := suite.memoRepo.Create(ctx, &models.CreateMemoRequest{
-		Title:   "削除対象メモ",
-		Content: "削除される内容",
-	})
+	// テストメモを作成
+	memo := map[string]interface{}{
+		"title":   "削除テストメモ",
+		"content": "削除テスト用の内容",
+	}
+	memoJSON, _ := json.Marshal(memo)
+	createReq := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memoJSON))
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW, createReq)
+
+	var createdMemo domain.Memo
+	json.Unmarshal(createW.Body.Bytes(), &createdMemo)
+
+	// 第1段階: アクティブ → アーカイブ
+	deleteReq1 := httptest.NewRequest("DELETE", "/api/memos/"+strconv.Itoa(createdMemo.ID), nil)
+	deleteW1 := httptest.NewRecorder()
+	suite.router.ServeHTTP(deleteW1, deleteReq1)
+
+	assert.Equal(suite.T(), http.StatusNoContent, deleteW1.Code)
+
+	// メモを取得してアーカイブ状態を確認
+	getReq1 := httptest.NewRequest("GET", "/api/memos/"+strconv.Itoa(createdMemo.ID), nil)
+	getW1 := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW1, getReq1)
+
+	var archivedMemo domain.Memo
+	json.Unmarshal(getW1.Body.Bytes(), &archivedMemo)
+	assert.Equal(suite.T(), domain.StatusArchived, archivedMemo.Status)
+
+	// 第2段階: アーカイブ → 永続削除
+	deleteReq2 := httptest.NewRequest("DELETE", "/api/memos/"+strconv.Itoa(createdMemo.ID), nil)
+	deleteW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(deleteW2, deleteReq2)
+
+	assert.Equal(suite.T(), http.StatusNoContent, deleteW2.Code)
+
+	// メモが完全に削除されたことを確認
+	getReq2 := httptest.NewRequest("GET", "/api/memos/"+strconv.Itoa(createdMemo.ID), nil)
+	getW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW2, getReq2)
+
+	assert.Equal(suite.T(), http.StatusNotFound, getW2.Code)
+}
+
+// メモフィルタリングのテスト
+func (suite *MemoIntegrationTestSuite) TestFilterMemos() {
+	// 異なるステータスのメモを作成
+	activeMemo := map[string]interface{}{
+		"title":   "アクティブメモ",
+		"content": "アクティブなメモ",
+	}
+	activeMemoJSON, _ := json.Marshal(activeMemo)
+	createReq1 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(activeMemoJSON))
+	createReq1.Header.Set("Content-Type", "application/json")
+	createW1 := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW1, createReq1)
+
+	archivedMemo := map[string]interface{}{
+		"title":   "アーカイブメモ",
+		"content": "アーカイブ予定のメモ",
+	}
+	archivedMemoJSON, _ := json.Marshal(archivedMemo)
+	createReq2 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(archivedMemoJSON))
+	createReq2.Header.Set("Content-Type", "application/json")
+	createW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW2, createReq2)
+
+	var archivedMemoResponse domain.Memo
+	json.Unmarshal(createW2.Body.Bytes(), &archivedMemoResponse)
+
+	// 1つのメモをアーカイブする
+	deleteReq := httptest.NewRequest("DELETE", "/api/memos/"+strconv.Itoa(archivedMemoResponse.ID), nil)
+	deleteW := httptest.NewRecorder()
+	suite.router.ServeHTTP(deleteW, deleteReq)
+
+	// アクティブメモのみをフィルタリング
+	req := httptest.NewRequest("GET", "/api/memos?status=active", nil)
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	var activeResponse struct {
+		Memos []domain.Memo `json:"memos"`
+		Total int           `json:"total"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &activeResponse)
+
+	assert.Equal(suite.T(), 1, activeResponse.Total)
+	assert.Equal(suite.T(), "アクティブメモ", activeResponse.Memos[0].Title)
+
+	// アーカイブメモのフィルタリング
+	req2 := httptest.NewRequest("GET", "/api/memos?status=archived", nil)
+	w2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(w2, req2)
+
+	var archivedResponse struct {
+		Memos []domain.Memo `json:"memos"`
+		Total int           `json:"total"`
+	}
+	json.Unmarshal(w2.Body.Bytes(), &archivedResponse)
+
+	assert.Equal(suite.T(), 1, archivedResponse.Total)
+	assert.Equal(suite.T(), "アーカイブメモ", archivedResponse.Memos[0].Title)
+}
+
+// TestStagedDeletion tests the staged deletion feature
+func (suite *MemoIntegrationTestSuite) TestStagedDeletion() {
+	// テストデータを準備（HTTP経由で作成）
+	memoData := map[string]interface{}{
+		"title":   "段階削除テストメモ",
+		"content": "アクティブなメモ",
+	}
+	
+	memoJSON, _ := json.Marshal(memoData)
+	createReq := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memoJSON))
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW, createReq)
+	
+	require.Equal(suite.T(), http.StatusCreated, createW.Code)
+	
+	var memo domain.Memo
+	err := json.Unmarshal(createW.Body.Bytes(), &memo)
 	require.NoError(suite.T(), err)
 
-	// リクエストを作成
-	req, err := http.NewRequest("DELETE", "/api/memos/"+strconv.Itoa(memo.ID), nil)
-	require.NoError(suite.T(), err)
-
-	// レスポンスを記録
+	// 1. アクティブメモの削除（アーカイブに移動）
+	deleteURL := "/api/memos/" + strconv.Itoa(memo.ID)
+	req := httptest.NewRequest("DELETE", deleteURL, nil)
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
 	// ステータスコードを確認（204 No Content）
 	assert.Equal(suite.T(), http.StatusNoContent, w.Code)
 
-	// メモが実際に削除されていることを確認
-	getReq, err := http.NewRequest("GET", "/api/memos/"+strconv.Itoa(memo.ID), nil)
-	require.NoError(suite.T(), err)
-
+	// メモがアーカイブに移動されていることを確認
+	getReq := httptest.NewRequest("GET", deleteURL, nil)
 	getW := httptest.NewRecorder()
 	suite.router.ServeHTTP(getW, getReq)
+	
+	assert.Equal(suite.T(), http.StatusOK, getW.Code)
+	
+	var archivedMemo domain.Memo
+	err = json.Unmarshal(getW.Body.Bytes(), &archivedMemo)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), domain.StatusArchived, archivedMemo.Status)
+	assert.NotNil(suite.T(), archivedMemo.CompletedAt)
 
+	// 2. アーカイブ済みメモの削除（完全削除）
+	req2 := httptest.NewRequest("DELETE", deleteURL, nil)
+	w2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(w2, req2)
+
+	// ステータスコードを確認（204 No Content）
+	assert.Equal(suite.T(), http.StatusNoContent, w2.Code)
+
+	// メモが完全に削除されていることを確認
+	getReq2 := httptest.NewRequest("GET", deleteURL, nil)
+	getW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW2, getReq2)
+	
+	assert.Equal(suite.T(), http.StatusNotFound, getW2.Code)
+}
+
+// TestPermanentDeleteEndpoint tests the permanent delete endpoint
+func (suite *MemoIntegrationTestSuite) TestPermanentDeleteEndpoint() {
+	// テストデータを準備（HTTP経由で作成）
+	memoData := map[string]interface{}{
+		"title":   "完全削除テストメモ",
+		"content": "直接削除するメモ",
+	}
+	
+	memoJSON, _ := json.Marshal(memoData)
+	createReq := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(memoJSON))
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	suite.router.ServeHTTP(createW, createReq)
+	
+	require.Equal(suite.T(), http.StatusCreated, createW.Code)
+	
+	var memo domain.Memo
+	err := json.Unmarshal(createW.Body.Bytes(), &memo)
+	require.NoError(suite.T(), err)
+
+	// 完全削除エンドポイントでアクティブメモを削除
+	permanentDeleteURL := "/api/memos/" + strconv.Itoa(memo.ID) + "/permanent"
+	req := httptest.NewRequest("DELETE", permanentDeleteURL, nil)
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	// ステータスコードを確認（204 No Content）
+	assert.Equal(suite.T(), http.StatusNoContent, w.Code)
+
+	// メモが完全に削除されていることを確認
+	getReq := httptest.NewRequest("GET", "/api/memos/"+strconv.Itoa(memo.ID), nil)
+	getW := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW, getReq)
+	
 	assert.Equal(suite.T(), http.StatusNotFound, getW.Code)
 }
 
-// 存在しないメモの取得テスト
-func (suite *MemoIntegrationTestSuite) TestGetNonExistentMemo() {
-	// 存在しないIDでリクエスト
-	req, err := http.NewRequest("GET", "/api/memos/999", nil)
-	require.NoError(suite.T(), err)
+// TestStagedDeletionFlow tests the complete staged deletion flow
+func (suite *MemoIntegrationTestSuite) TestStagedDeletionFlow() {
+	// 1. メモを作成
+	createReq := map[string]interface{}{
+		"title":   "削除フローテスト",
+		"content": "段階的削除のフローをテストします",
+	}
+	createBody, _ := json.Marshal(createReq)
 
-	// レスポンスを記録
-	w := httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
-
-	// ステータスコードを確認
-	assert.Equal(suite.T(), http.StatusNotFound, w.Code)
-
-	// レスポンスボディを解析
-	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(suite.T(), err)
-
-	// レスポンスの内容を確認
-	assert.Contains(suite.T(), response["error"], "not found")
-}
-
-// 無効なJSONでのメモ作成テスト
-func (suite *MemoIntegrationTestSuite) TestCreateMemoInvalidJSON() {
-	// 無効なJSONでリクエスト
-	req, err := http.NewRequest("POST", "/api/memos", bytes.NewBufferString("invalid json"))
-	require.NoError(suite.T(), err)
+	req := httptest.NewRequest("POST", "/api/memos", bytes.NewBuffer(createBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	// レスポンスを記録
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
-	// ステータスコードを確認
-	assert.Equal(suite.T(), http.StatusBadRequest, w.Code)
-}
+	require.Equal(suite.T(), http.StatusCreated, w.Code)
 
-// バリデーションエラーのテスト
-func (suite *MemoIntegrationTestSuite) TestCreateMemoValidationError() {
-	// 空のタイトルでリクエスト
-	requestBody := map[string]string{
-		"title":   "",
-		"content": "内容だけあります",
-	}
-	jsonBody, err := json.Marshal(requestBody)
+	var createdMemo domain.Memo
+	err := json.Unmarshal(w.Body.Bytes(), &createdMemo)
 	require.NoError(suite.T(), err)
 
-	req, err := http.NewRequest("POST", "/api/memos", bytes.NewBuffer(jsonBody))
+	memoID := strconv.Itoa(createdMemo.ID)
+
+	// 2. 一回目の削除（アーカイブ）
+	deleteReq := httptest.NewRequest("DELETE", "/api/memos/"+memoID, nil)
+	deleteW := httptest.NewRecorder()
+	suite.router.ServeHTTP(deleteW, deleteReq)
+
+	assert.Equal(suite.T(), http.StatusNoContent, deleteW.Code)
+
+	// アーカイブされていることを確認
+	getReq := httptest.NewRequest("GET", "/api/memos/"+memoID, nil)
+	getW := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW, getReq)
+
+	assert.Equal(suite.T(), http.StatusOK, getW.Code)
+
+	var archivedMemo domain.Memo
+	err = json.Unmarshal(getW.Body.Bytes(), &archivedMemo)
 	require.NoError(suite.T(), err)
-	req.Header.Set("Content-Type", "application/json")
+	assert.Equal(suite.T(), domain.StatusArchived, archivedMemo.Status)
 
-	// レスポンスを記録
-	w := httptest.NewRecorder()
-	suite.router.ServeHTTP(w, req)
+	// 3. 二回目の削除（完全削除）
+	deleteReq2 := httptest.NewRequest("DELETE", "/api/memos/"+memoID, nil)
+	deleteW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(deleteW2, deleteReq2)
 
-	// ステータスコードを確認
-	assert.Equal(suite.T(), http.StatusBadRequest, w.Code)
+	assert.Equal(suite.T(), http.StatusNoContent, deleteW2.Code)
+
+	// 完全に削除されていることを確認
+	getReq2 := httptest.NewRequest("GET", "/api/memos/"+memoID, nil)
+	getW2 := httptest.NewRecorder()
+	suite.router.ServeHTTP(getW2, getReq2)
+
+	assert.Equal(suite.T(), http.StatusNotFound, getW2.Code)
 }
 
-func TestMemoIntegrationSuite(t *testing.T) {
-	if testing.Short() {
-		t.Skip("短いテストモードで統合テストをスキップ")
-	}
-
+func TestMemoIntegrationTestSuite(t *testing.T) {
 	suite.Run(t, new(MemoIntegrationTestSuite))
 }

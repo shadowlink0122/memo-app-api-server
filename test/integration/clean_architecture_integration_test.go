@@ -259,8 +259,34 @@ func (suite *MemoIntegrationTestSuite) TestFullMemoLifecycle() {
 
 	suite.Equal(http.StatusNoContent, w.Code)
 
-	// 8. 削除後の取得確認（404エラーになるはず）
+	// 8. 削除後の取得確認（アーカイブ状態になっているはず）
 	getDeletedURL := "/api/memos/" + fmt.Sprintf("%d", memoID)
+	req = httptest.NewRequest("GET", getDeletedURL, nil)
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
+
+	w = httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+	
+	// レスポンスをパース
+	var archivedMemo domain.Memo
+	err = json.Unmarshal(w.Body.Bytes(), &archivedMemo)
+	suite.NoError(err)
+	suite.Equal(domain.StatusArchived, archivedMemo.Status)
+	suite.NotNil(archivedMemo.CompletedAt)
+
+	// 9. 2回目の削除（完全削除）
+	deleteURL = "/api/memos/" + fmt.Sprintf("%d", memoID)
+	req = httptest.NewRequest("DELETE", deleteURL, nil)
+	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
+
+	w = httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusNoContent, w.Code)
+
+	// 10. 完全削除後の取得確認（404エラーになるはず）
 	req = httptest.NewRequest("GET", getDeletedURL, nil)
 	req.Header.Set("Authorization", "Bearer "+suite.testJWTToken)
 

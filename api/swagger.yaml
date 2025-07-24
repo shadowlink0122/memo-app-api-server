@@ -15,8 +15,23 @@ info:
     - カテゴリとタグによる分類
     - 優先度設定（low/medium/high）
     - ステータス管理（active/archived）
+    - 段階的削除システム（誤削除防止）
     - 全文検索機能
     - ページネーション対応
+
+    ## 削除システム
+
+    メモの削除は2段階で行われます：
+
+    1. **第1段階削除** (`DELETE /api/memos/{id}`)
+       - アクティブメモ → アーカイブに移動
+       - アーカイブメモ → 完全削除
+
+    2. **完全削除** (`DELETE /api/memos/{id}/permanent`)
+       - 即座に完全削除（取り消し不可）
+
+    3. **復元** (`PATCH /api/memos/{id}/restore`)
+       - アーカイブメモ → アクティブに復元
 
   version: 2.0.0
   contact:
@@ -582,8 +597,15 @@ paths:
     delete:
       tags:
         - Memo
-      summary: メモ削除
-      description: 指定されたIDのメモを削除します
+      summary: メモ段階的削除
+      description: |
+        指定されたIDのメモを段階的に削除します。
+
+        **削除動作:**
+        - **アクティブメモ**: アーカイブに移動（復元可能）
+        - **アーカイブ済みメモ**: 完全削除（復元不可）
+
+        この仕組みにより、誤削除を防止できます。
       security:
         - bearerAuth: []
       parameters:
@@ -596,7 +618,47 @@ paths:
             minimum: 1
       responses:
         "204":
-          description: メモ削除成功
+          description: メモ削除成功（アーカイブまたは完全削除）
+        "404":
+          description: メモが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/{id}/permanent:
+    delete:
+      tags:
+        - Memo
+      summary: メモ完全削除
+      description: |
+        指定されたIDのメモを完全削除します。
+
+        **注意:** この操作は取り消せません。データは完全に失われます。
+
+        **使用場面:**
+        - アーカイブ済みメモの最終削除
+        - 機密データの確実な削除
+        - データベースのクリーンアップ
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: メモID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          description: メモ完全削除成功
         "404":
           description: メモが見つかりません
           content:

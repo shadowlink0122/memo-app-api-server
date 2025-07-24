@@ -288,14 +288,38 @@ func (r *MemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) 
 	return &updatedMemo, nil
 }
 
-// Delete deletes a memo
+// Delete handles memo deletion with staged approach
 func (r *MemoRepository) Delete(ctx context.Context, id int) error {
+	r.logger.WithField("memo_id", id).Info("=== インフラストラクチャリポジトリのDeleteメソッドが呼ばれました ===")
+
+	// まず、メモの現在の状態を確認
+	memo, err := r.GetByID(ctx, id)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
+		return err
+	}
+
+	r.logger.WithField("memo_id", id).WithField("current_status", memo.Status).Info("メモの現在のステータス")
+
+	// すでにアーカイブ済みの場合は完全削除
+	if memo.Status == domain.StatusArchived {
+		r.logger.WithField("memo_id", id).Info("アーカイブ済みメモを完全削除します")
+		return r.PermanentDelete(ctx, id)
+	}
+
+	// アクティブなメモの場合はアーカイブに移動
+	r.logger.WithField("memo_id", id).Info("メモをアーカイブに移動します")
+	return r.Archive(ctx, id)
+}
+
+// PermanentDelete permanently deletes a memo from database
+func (r *MemoRepository) PermanentDelete(ctx context.Context, id int) error {
 	query := `DELETE FROM memos WHERE id = $1`
 
 	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		r.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
-		return fmt.Errorf("failed to delete memo: %w", err)
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
+		return fmt.Errorf("failed to permanently delete memo: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -307,23 +331,34 @@ func (r *MemoRepository) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("memo not found")
 	}
 
-	r.logger.WithField("memo_id", id).Info("メモを削除しました")
+	r.logger.WithField("memo_id", id).Info("メモを完全削除しました")
 	return nil
 }
 
 // Archive archives a memo
 func (r *MemoRepository) Archive(ctx context.Context, id int) error {
+	r.logger.WithField("memo_id", id).Info("=== Archiveメソッドが呼ばれました ===")
+
 	memo, err := r.GetByID(ctx, id)
 	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("アーカイブ対象メモの取得に失敗")
 		return err
 	}
+
+	r.logger.WithField("memo_id", id).WithField("before_status", memo.Status).Info("アーカイブ前のステータス")
 
 	memo.Status = domain.StatusArchived
 	now := time.Now()
 	memo.CompletedAt = &now
 
-	_, err = r.Update(ctx, id, memo)
-	return err
+	updatedMemo, err := r.Update(ctx, id, memo)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("アーカイブ更新に失敗")
+		return err
+	}
+
+	r.logger.WithField("memo_id", id).WithField("new_status", updatedMemo.Status).Info("メモをアーカイブしました")
+	return nil
 }
 
 // Restore restores an archived memo

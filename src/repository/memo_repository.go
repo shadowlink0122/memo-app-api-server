@@ -282,14 +282,49 @@ func (r *MemoRepository) Update(ctx context.Context, id int, req *models.UpdateM
 	return memo, nil
 }
 
-// Delete deletes a memo
+// Delete handles memo deletion with staged approach
 func (r *MemoRepository) Delete(ctx context.Context, id int) error {
+	r.logger.WithField("memo_id", id).Info("=== レガシーリポジトリのDeleteメソッドが呼ばれました ===")
+
+	// まず、メモの現在の状態を確認
+	memo, err := r.GetByID(ctx, id)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
+		return err
+	}
+
+	r.logger.WithField("memo_id", id).WithField("current_status", memo.Status).Info("メモの現在のステータス")
+
+	// すでにアーカイブ済みの場合は完全削除
+	if memo.Status == "archived" {
+		r.logger.WithField("memo_id", id).Info("アーカイブ済みメモを完全削除します")
+		return r.PermanentDelete(ctx, id)
+	}
+
+	// アクティブなメモの場合はアーカイブに移動
+	r.logger.WithField("memo_id", id).Info("メモをアーカイブに移動します")
+	status := "archived"
+	updateReq := &models.UpdateMemoRequest{
+		Status: &status,
+	}
+	updatedMemo, err := r.Update(ctx, id, updateReq)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("アーカイブ更新に失敗")
+		return err
+	}
+
+	r.logger.WithField("memo_id", id).WithField("new_status", updatedMemo.Status).Info("メモをアーカイブしました")
+	return nil
+}
+
+// PermanentDelete permanently deletes a memo from database
+func (r *MemoRepository) PermanentDelete(ctx context.Context, id int) error {
 	query := `DELETE FROM memos WHERE id = $1`
 
 	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		r.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
-		return fmt.Errorf("failed to delete memo: %w", err)
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
+		return fmt.Errorf("failed to permanently delete memo: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -301,6 +336,170 @@ func (r *MemoRepository) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("memo not found")
 	}
 
-	r.logger.WithField("memo_id", id).Info("メモを削除しました")
+	r.logger.WithField("memo_id", id).Info("メモを完全削除しました")
 	return nil
+}
+
+// Archive archives a memo
+func (r *MemoRepository) Archive(ctx context.Context, id int) error {
+	query := `UPDATE memos SET status = 'archived', updated_at = $1, completed_at = $1 WHERE id = $2`
+
+	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモのアーカイブに失敗")
+		return fmt.Errorf("failed to archive memo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("memo not found")
+	}
+
+	r.logger.WithField("memo_id", id).Info("メモをアーカイブしました")
+	return nil
+}
+
+// Restore restores an archived memo
+func (r *MemoRepository) Restore(ctx context.Context, id int) error {
+	query := `UPDATE memos SET status = 'active', updated_at = $1, completed_at = NULL WHERE id = $2`
+
+	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
+	if err != nil {
+		r.logger.WithError(err).WithField("memo_id", id).Error("メモの復元に失敗")
+		return fmt.Errorf("failed to restore memo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("memo not found")
+	}
+
+	r.logger.WithField("memo_id", id).Info("メモを復元しました")
+	return nil
+}
+
+// Search searches for memos
+func (r *MemoRepository) Search(ctx context.Context, query string, filter models.MemoFilter) ([]models.Memo, int, error) {
+	// 基本的なクエリ構築
+	baseQuery := `
+		SELECT id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
+		FROM memos
+		WHERE (title ILIKE $1 OR content ILIKE $1)`
+
+	args := []interface{}{"%" + query + "%"}
+	argIndex := 2
+
+	// フィルター条件を追加
+	if filter.Status != "" {
+		baseQuery += fmt.Sprintf(" AND status = $%d", argIndex)
+		args = append(args, filter.Status)
+		argIndex++
+	}
+
+	if filter.Category != "" {
+		baseQuery += fmt.Sprintf(" AND category = $%d", argIndex)
+		args = append(args, filter.Category)
+		argIndex++
+	}
+
+	if filter.Priority != "" {
+		baseQuery += fmt.Sprintf(" AND priority = $%d", argIndex)
+		args = append(args, filter.Priority)
+		argIndex++
+	}
+
+	// タグフィルター
+	if len(filter.Tags) > 0 {
+		placeholders := make([]string, len(filter.Tags))
+		for i, tag := range filter.Tags {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, tag)
+			argIndex++
+		}
+		baseQuery += fmt.Sprintf(" AND tags && ARRAY[%s]", strings.Join(placeholders, ","))
+	}
+
+	// 順序とページネーション
+	baseQuery += " ORDER BY created_at DESC"
+
+	if filter.Limit > 0 {
+		offset := (filter.Page - 1) * filter.Limit
+		baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+		args = append(args, filter.Limit, offset)
+	}
+
+	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
+	if err != nil {
+		r.logger.WithError(err).Error("メモ検索クエリの実行に失敗")
+		return nil, 0, fmt.Errorf("failed to search memos: %w", err)
+	}
+	defer rows.Close()
+
+	var memos []models.Memo
+	for rows.Next() {
+		var memo models.Memo
+		err := rows.Scan(
+			&memo.ID, &memo.Title, &memo.Content, &memo.Category, &memo.Tags,
+			&memo.Priority, &memo.Status, &memo.CreatedAt, &memo.UpdatedAt, &memo.CompletedAt,
+		)
+		if err != nil {
+			r.logger.WithError(err).Error("メモデータのスキャンに失敗")
+			continue
+		}
+		memos = append(memos, memo)
+	}
+
+	// 総件数を取得（ページネーション用）
+	countQuery := `
+		SELECT COUNT(*)
+		FROM memos
+		WHERE (title ILIKE $1 OR content ILIKE $1)`
+
+	countArgs := []interface{}{"%" + query + "%"}
+	countArgIndex := 2
+
+	if filter.Status != "" {
+		countQuery += fmt.Sprintf(" AND status = $%d", countArgIndex)
+		countArgs = append(countArgs, filter.Status)
+		countArgIndex++
+	}
+
+	if filter.Category != "" {
+		countQuery += fmt.Sprintf(" AND category = $%d", countArgIndex)
+		countArgs = append(countArgs, filter.Category)
+		countArgIndex++
+	}
+
+	if filter.Priority != "" {
+		countQuery += fmt.Sprintf(" AND priority = $%d", countArgIndex)
+		countArgs = append(countArgs, filter.Priority)
+		countArgIndex++
+	}
+
+	if len(filter.Tags) > 0 {
+		placeholders := make([]string, len(filter.Tags))
+		for i, tag := range filter.Tags {
+			placeholders[i] = fmt.Sprintf("$%d", countArgIndex)
+			countArgs = append(countArgs, tag)
+			countArgIndex++
+		}
+		countQuery += fmt.Sprintf(" AND tags && ARRAY[%s]", strings.Join(placeholders, ","))
+	}
+
+	var total int
+	err = r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		r.logger.WithError(err).Error("メモ検索総件数の取得に失敗")
+		return memos, 0, fmt.Errorf("failed to get search count: %w", err)
+	}
+
+	return memos, total, nil
 }
