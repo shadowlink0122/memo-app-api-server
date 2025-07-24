@@ -37,10 +37,10 @@ func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *h
 		memos.DELETE("/:id", memoHandler.DeleteMemo) // DELETE /api/memos/:id (staged deletion)
 
 		// アーカイブ関連の操作
-		memos.GET("/archive", memoHandler.ListArchivedMemos)            // GET /api/memos/archive (archivedのみ)
-		memos.PATCH("/:id/archive", memoHandler.ArchiveMemo)            // PATCH /api/memos/:id/archive
-		memos.PATCH("/:id/restore", memoHandler.RestoreMemo)            // PATCH /api/memos/:id/restore
-		
+		memos.GET("/archive", memoHandler.ListArchivedMemos) // GET /api/memos/archive (archivedのみ)
+		memos.PATCH("/:id/archive", memoHandler.ArchiveMemo) // PATCH /api/memos/:id/archive
+		memos.PATCH("/:id/restore", memoHandler.RestoreMemo) // PATCH /api/memos/:id/restore
+
 		// その他の操作
 		memos.DELETE("/:id/permanent", memoHandler.PermanentDeleteMemo) // DELETE /api/memos/:id/permanent
 

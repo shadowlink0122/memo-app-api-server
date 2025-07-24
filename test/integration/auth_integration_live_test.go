@@ -229,10 +229,10 @@ func setupLiveTestDatabase(t *testing.T, cfg *config.Config) *sql.DB {
 		DBName:   cfg.Database.DBName,
 		SSLMode:  cfg.Database.SSLMode,
 	}, logrus.New())
-	
+
 	if err != nil {
 		t.Logf("データベース接続エラー: %v", err)
-		t.Logf("接続設定: Host=%s, Port=%d, User=%s, DBName=%s", 
+		t.Logf("接続設定: Host=%s, Port=%d, User=%s, DBName=%s",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.DBName)
 		t.Skip("ローカル環境でのデータベース接続に失敗しました。CI環境では正常に動作する予定です。")
 	}
