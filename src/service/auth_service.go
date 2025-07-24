@@ -426,7 +426,10 @@ func (s *authService) getGitHubUserEmails(accessToken string) ([]string, error) 
 // generateRandomState ランダムなstate文字列を生成
 func GenerateRandomState() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// ランダム文字列生成に失敗した場合は現在時刻ベースの文字列を返す
+		return fmt.Sprintf("state_%d", time.Now().UnixNano())
+	}
 	return base64.URLEncoding.EncodeToString(b)
 }
 

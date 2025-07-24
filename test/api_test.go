@@ -63,6 +63,16 @@ func (m *MockJWTService) ValidateRefreshToken(tokenString string) (*service.JWTC
 	return nil, assert.AnError
 }
 
+func (m *MockJWTService) InvalidateToken(tokenString string) error {
+	// モックでは常に成功として扱う
+	return nil
+}
+
+func (m *MockJWTService) IsTokenInvalidated(tokenString string) bool {
+	// テスト用の無効化されたトークン
+	return tokenString == "invalidated-token"
+}
+
 // MockUserRepository APIテスト用のモック
 type MockUserRepository struct{}
 

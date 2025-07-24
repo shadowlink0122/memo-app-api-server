@@ -5,15 +5,29 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"memo-app/src/handlers"
+	"memo-app/src/logger"
 	"memo-app/src/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+func TestMain(m *testing.M) {
+	// テスト用のロガーを初期化
+	if err := logger.InitLogger(); err != nil {
+		panic(err)
+	}
+	defer logger.CloseLogger()
+
+	// テストを実行
+	code := m.Run()
+	os.Exit(code)
+}
 
 // MockAuthService モック認証サービス
 type MockAuthService struct {
