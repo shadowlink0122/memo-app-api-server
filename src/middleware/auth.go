@@ -46,6 +46,14 @@ func AuthMiddleware(jwtService service.JWTService, userRepo repository.UserRepos
 			return
 		}
 
+		// トークンが無効化されているかチェック
+		if jwtService.IsTokenInvalidated(token) {
+			logger.WithField("client_ip", c.ClientIP()).Warn("認証失敗: トークンが無効化されています")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been invalidated"})
+			c.Abort()
+			return
+		}
+
 		// JWT token検証
 		userID, err := jwtService.ValidateAccessToken(token)
 		if err != nil {

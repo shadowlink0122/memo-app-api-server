@@ -31,6 +31,7 @@ type AuthService interface {
 	// トークン管理
 	ValidateToken(tokenString string) (*models.User, error)
 	RefreshToken(refreshToken string) (*models.AuthResponse, error)
+	InvalidateToken(tokenString string) error
 
 	// IP制限チェック
 	CheckIPLimit(clientIP string) error
@@ -474,6 +475,12 @@ func (s *authService) exchangeCodeForToken(code string) (string, error) {
 	}
 
 	return tokenResponse.AccessToken, nil
+}
+
+// InvalidateToken トークンを無効化
+func (s *authService) InvalidateToken(tokenString string) error {
+	// JWTサービスでトークンをブラックリストに追加
+	return s.jwtService.InvalidateToken(tokenString)
 }
 
 // stringPtr 文字列のポインタを生成

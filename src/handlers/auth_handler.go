@@ -223,6 +223,36 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	})
 }
 
+// Logout ユーザーをログアウト
+func (h *AuthHandler) Logout(c *gin.Context) {
+	// Authorization ヘッダーからトークンを取得
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization header is required"})
+		return
+	}
+
+	// Bearer トークンの形式をチェック
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization header format"})
+		return
+	}
+
+	token := parts[1]
+
+	// トークンをブラックリストに追加（トークンを無効化）
+	err := h.authService.InvalidateToken(token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Successfully logged out",
+	})
+}
+
 // getClientIP クライアントのIPアドレスを取得
 func getClientIP(c *gin.Context) string {
 	// X-Forwarded-For ヘッダーをチェック

@@ -70,6 +70,11 @@ func (m *MockAuthService) CheckIPLimit(clientIP string) error {
 	return args.Error(0)
 }
 
+func (m *MockAuthService) InvalidateToken(tokenString string) error {
+	args := m.Called(tokenString)
+	return args.Error(0)
+}
+
 func TestAuthHandler_Register(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -358,6 +363,85 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 
 			// ハンドラーを実行
 			handler.RefreshToken(c)
+
+			// アサーション
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Contains(t, w.Body.String(), tt.expectedBody)
+
+			// モックの期待値を検証
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthHandler_Logout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		authHeader     string
+		setupMock      func(*MockAuthService)
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:       "正常なログアウト",
+			authHeader: "Bearer valid-token",
+			setupMock: func(m *MockAuthService) {
+				m.On("InvalidateToken", "valid-token").Return(nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   "Successfully logged out",
+		},
+		{
+			name:           "Authorization ヘッダーなし",
+			authHeader:     "",
+			setupMock:      func(m *MockAuthService) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "Authorization header is required",
+		},
+		{
+			name:           "無効なAuthorizationヘッダー形式",
+			authHeader:     "invalid-format",
+			setupMock:      func(m *MockAuthService) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "Invalid authorization header format",
+		},
+		{
+			name:       "ログアウト処理失敗",
+			authHeader: "Bearer valid-token",
+			setupMock: func(m *MockAuthService) {
+				m.On("InvalidateToken", "valid-token").Return(assert.AnError)
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Failed to logout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// モックサービスの設定
+			mockService := new(MockAuthService)
+			tt.setupMock(mockService)
+
+			// ハンドラーの作成
+			handler := handlers.NewAuthHandler(mockService)
+
+			// リクエストを作成
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			// レスポンスレコーダーを作成
+			w := httptest.NewRecorder()
+
+			// Ginコンテキストを作成
+			c, _ := gin.CreateTestContext(w)
+			c.Request = req
+
+			// ハンドラーを実行
+			handler.Logout(c)
 
 			// アサーション
 			assert.Equal(t, tt.expectedStatus, w.Code)
