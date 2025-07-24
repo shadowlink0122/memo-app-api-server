@@ -177,7 +177,7 @@ func TestDatabaseSchema(t *testing.T) {
 
 	// memosテーブルの基本カラム確認
 	memoColumns := []string{
-		"id", "title", "content", "category", "tags", 
+		"id", "title", "content", "category", "tags",
 		"priority", "status", "user_id", "is_public",
 		"created_at", "updated_at", "completed_at",
 	}
