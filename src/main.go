@@ -205,7 +205,7 @@ func main() {
 	// }
 
 	// メモAPIのルートを設定
-	routes.SetupRoutes(r, memoHandler, authHandler)
+	routes.SetupRoutes(r, memoHandler, authHandler, jwtService, userRepository)
 
 	// グレースフルシャットダウンの設定
 	go func() {

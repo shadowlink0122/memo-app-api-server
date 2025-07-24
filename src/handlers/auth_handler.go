@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"strings"
 
+	"memo-app/src/logger"
 	"memo-app/src/models"
 	"memo-app/src/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // AuthHandler 認証ハンドラー
@@ -244,9 +246,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// トークンをブラックリストに追加（トークンを無効化）
 	err := h.authService.InvalidateToken(token)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"error": err.Error(),
+			"token": token[:10] + "...", // セキュリティのため一部のみログ出力
+		}).Error("トークンの無効化に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"token": token[:10] + "...", // セキュリティのため一部のみログ出力
+	}).Info("トークンを正常に無効化しました")
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Successfully logged out",

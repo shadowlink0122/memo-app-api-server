@@ -4,12 +4,14 @@ import (
 	"memo-app/src/handlers"
 	"memo-app/src/interface/handler"
 	"memo-app/src/middleware"
+	"memo-app/src/repository"
+	"memo-app/src/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes sets up all API routes
-func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *handlers.AuthHandler) {
+func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *handlers.AuthHandler, jwtService service.JWTService, userRepo repository.UserRepository) {
 	// パブリックルートのグループ化
 	api := r.Group("/api")
 	api.Use(middleware.LoggerMiddleware())
@@ -27,8 +29,9 @@ func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *h
 		auth.GET("/github/callback", authHandler.GitHubCallback)
 	}
 
-	// 一時的に認証なしでメモAPIを利用可能にする
+	// 認証が必要なメモAPIエンドポイント
 	memos := api.Group("/memos")
+	memos.Use(middleware.AuthMiddleware(jwtService, userRepo))
 	{
 		// メモの基本CRUD操作
 		memos.POST("", memoHandler.CreateMemo)       // POST /api/memos
