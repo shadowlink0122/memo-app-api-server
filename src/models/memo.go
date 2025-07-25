@@ -7,6 +7,7 @@ import (
 // Memo represents a memo item
 type Memo struct {
 	ID          int        `json:"id" db:"id"`
+	UserID      int        `json:"user_id" db:"user_id"`
 	Title       string     `json:"title" db:"title" binding:"required,max=200"`
 	Content     string     `json:"content" db:"content" binding:"required"`
 	Category    string     `json:"category" db:"category" binding:"max=50"`

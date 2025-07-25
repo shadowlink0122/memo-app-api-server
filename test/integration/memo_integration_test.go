@@ -65,9 +65,9 @@ func (suite *MemoIntegrationTestSuite) SetupSuite() {
 
 func (suite *MemoIntegrationTestSuite) SetupTest() {
 	// 各テスト前にデータをクリーンアップ（モックを再初期化）
-	suite.memoRepo = &mockMemoRepository{
-		memos:  make(map[int]*domain.Memo),
-		nextID: 1,
+	suite.memoRepo = &memoIntegrationMockRepository{
+		userMemos: make(map[int]map[int]*domain.Memo),
+		nextID:    1,
 	}
 	suite.memoUsecase = usecase.NewMemoUsecase(suite.memoRepo)
 	suite.memoHandler = handler.NewMemoHandler(suite.memoUsecase, suite.testLogger)
@@ -81,22 +81,23 @@ func (suite *MemoIntegrationTestSuite) SetupTest() {
 
 func (suite *MemoIntegrationTestSuite) setupMockComponents() {
 	// モックリポジトリを作成
-	suite.memoRepo = &mockMemoRepository{
-		memos:  make(map[int]*domain.Memo),
-		nextID: 1,
+	suite.memoRepo = &memoIntegrationMockRepository{
+		userMemos: make(map[int]map[int]*domain.Memo),
+		nextID:    1,
 	}
 
 	suite.memoUsecase = usecase.NewMemoUsecase(suite.memoRepo)
 	suite.memoHandler = handler.NewMemoHandler(suite.memoUsecase, suite.testLogger)
 }
 
-// テスト専用のルート設定（認証ミドルウェアなし）
+// テスト専用のルート設定（認証ミドルウェアあり）
 func (suite *MemoIntegrationTestSuite) setupTestRoutes() {
 	// パブリックルートのグループ化
 	api := suite.router.Group("/api")
 
-	// 認証なしでメモAPIルートを設定
+	// 認証付きでメモAPIルートを設定（固定ユーザーID=1）
 	memos := api.Group("/memos")
+	memos.Use(suite.simpleAuthMiddleware())
 	{
 		// メモの基本CRUD操作
 		memos.POST("", suite.memoHandler.CreateMemo)                          // POST /api/memos
@@ -108,44 +109,65 @@ func (suite *MemoIntegrationTestSuite) setupTestRoutes() {
 	}
 }
 
-// モックリポジトリの実装
-type mockMemoRepository struct {
-	memos  map[int]*domain.Memo
-	nextID int
-	mutex  sync.RWMutex
+// モックリポジトリの実装（ユーザー分離対応）
+type memoIntegrationMockRepository struct {
+	userMemos map[int]map[int]*domain.Memo // userID -> memoID -> memo
+	nextID    int
+	mutex     sync.RWMutex
 }
 
-func (m *mockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
+func (m *memoIntegrationMockRepository) getUserMemos(userID int) map[int]*domain.Memo {
+	if _, exists := m.userMemos[userID]; !exists {
+		m.userMemos[userID] = make(map[int]*domain.Memo)
+	}
+	return m.userMemos[userID]
+}
+
+// Removed duplicate Create method to resolve redeclaration error.
+
+func (m *memoIntegrationMockRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	// userIDが設定されていない場合は、デフォルトでユーザー1を使用
+	if memo.UserID == 0 {
+		memo.UserID = 1
+	}
+
+	memos := m.getUserMemos(memo.UserID)
 	memo.ID = m.nextID
+	m.nextID++
 	memo.CreatedAt = time.Now()
 	memo.UpdatedAt = time.Now()
-	memo.Status = domain.StatusActive
 
-	m.memos[m.nextID] = memo
-	m.nextID++
+	// デフォルトでアクティブステータスを設定
+	if memo.Status == "" {
+		memo.Status = domain.StatusActive
+	}
+
+	memos[memo.ID] = memo
 	return memo, nil
 }
 
-func (m *mockMemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, error) {
+func (m *memoIntegrationMockRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	memo, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	memo, exists := memos[id]
 	if !exists {
-		return nil, fmt.Errorf("memo not found")
+		return nil, usecase.ErrMemoNotFound
 	}
 	return memo, nil
 }
 
-func (m *mockMemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+func (m *memoIntegrationMockRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	var memos []domain.Memo
-	for _, memo := range m.memos {
+	memos := m.getUserMemos(userID)
+	var result []domain.Memo
+	for _, memo := range memos {
 		// フィルタリング（status, categoryなどの条件）
 		if filter.Status != "" && memo.Status != filter.Status {
 			continue
@@ -153,18 +175,19 @@ func (m *mockMemoRepository) List(ctx context.Context, filter domain.MemoFilter)
 		if filter.Category != "" && memo.Category != filter.Category {
 			continue
 		}
-		memos = append(memos, *memo)
+		result = append(result, *memo)
 	}
-	return memos, len(memos), nil
+	return result, len(result), nil
 }
 
-func (m *mockMemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) (*domain.Memo, error) {
+func (m *memoIntegrationMockRepository) Update(ctx context.Context, id int, userID int, memo *domain.Memo) (*domain.Memo, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	existingMemo, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	existingMemo, exists := memos[id]
 	if !exists {
-		return nil, fmt.Errorf("memo not found")
+		return nil, usecase.ErrMemoNotFound
 	}
 
 	// 更新フィールドのみを更新
@@ -191,13 +214,14 @@ func (m *mockMemoRepository) Update(ctx context.Context, id int, memo *domain.Me
 	return existingMemo, nil
 }
 
-func (m *mockMemoRepository) Delete(ctx context.Context, id int) error {
+func (m *memoIntegrationMockRepository) Delete(ctx context.Context, id int, userID int) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	memo, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	memo, exists := memos[id]
 	if !exists {
-		return fmt.Errorf("memo not found")
+		return usecase.ErrMemoNotFound
 	}
 
 	// 段階的削除の実装
@@ -209,30 +233,32 @@ func (m *mockMemoRepository) Delete(ctx context.Context, id int) error {
 		memo.CompletedAt = &completedAt
 	} else if memo.Status == domain.StatusArchived {
 		// アーカイブ済みメモを完全削除
-		delete(m.memos, id)
+		delete(memos, id)
 	}
 	return nil
 }
 
-func (m *mockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
+func (m *memoIntegrationMockRepository) PermanentDelete(ctx context.Context, id int, userID int) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	_, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	_, exists := memos[id]
 	if !exists {
-		return fmt.Errorf("memo not found")
+		return usecase.ErrMemoNotFound
 	}
-	delete(m.memos, id)
+	delete(memos, id)
 	return nil
 }
 
-func (m *mockMemoRepository) Archive(ctx context.Context, id int) error {
+func (m *memoIntegrationMockRepository) Archive(ctx context.Context, id int, userID int) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	memo, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	memo, exists := memos[id]
 	if !exists {
-		return fmt.Errorf("memo not found")
+		return usecase.ErrMemoNotFound
 	}
 	memo.Status = domain.StatusArchived
 	memo.UpdatedAt = time.Now()
@@ -241,25 +267,27 @@ func (m *mockMemoRepository) Archive(ctx context.Context, id int) error {
 	return nil
 }
 
-func (m *mockMemoRepository) Restore(ctx context.Context, id int) error {
+func (m *memoIntegrationMockRepository) Restore(ctx context.Context, id int, userID int) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	memo, exists := m.memos[id]
+	memos := m.getUserMemos(userID)
+	memo, exists := memos[id]
 	if !exists {
-		return fmt.Errorf("memo not found")
+		return usecase.ErrMemoNotFound
 	}
 	memo.Status = domain.StatusActive
 	memo.UpdatedAt = time.Now()
 	return nil
 }
 
-func (m *mockMemoRepository) Search(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+func (m *memoIntegrationMockRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
+	memos := m.getUserMemos(userID)
 	var result []domain.Memo
-	for _, memo := range m.memos {
+	for _, memo := range memos {
 		// ステータスフィルタ
 		if filter.Status != "" && memo.Status != filter.Status {
 			continue
@@ -504,6 +532,249 @@ func (suite *MemoIntegrationTestSuite) TestFilterMemos() {
 
 	assert.Equal(suite.T(), 1, archivedResponse.Total)
 	assert.Equal(suite.T(), "アーカイブメモ", archivedResponse.Memos[0].Title)
+}
+
+// TestUserIsolation_MemoCreation - ユーザーがメモを作成し、他のユーザーからは見えないことを確認
+func (suite *MemoIntegrationTestSuite) TestUserIsolation_MemoCreation() {
+	// 新しいルーターに認証ミドルウェアを追加
+	router := gin.New()
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.CORSMiddleware())
+
+	api := router.Group("/api")
+	memos := api.Group("/memos")
+	memos.Use(suite.mockAuthMiddleware())
+	{
+		memos.POST("", suite.memoHandler.CreateMemo)
+		memos.GET("", suite.memoHandler.ListMemos)
+		memos.GET("/:id", suite.memoHandler.GetMemo)
+	}
+
+	// ユーザー1がメモを作成
+	createReq := map[string]interface{}{
+		"title":    "ユーザー1のプライベートメモ",
+		"content":  "これはユーザー1だけが見られるメモです",
+		"category": "個人",
+		"priority": "high",
+	}
+
+	reqBody, _ := json.Marshal(createReq)
+	req1 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(reqBody))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-User-ID", "1")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+
+	assert.Equal(suite.T(), http.StatusCreated, w1.Code)
+
+	var createResp map[string]interface{}
+	err := json.Unmarshal(w1.Body.Bytes(), &createResp)
+	require.NoError(suite.T(), err)
+
+	// メモIDを取得
+	memoIDFloat, ok := createResp["id"].(float64)
+	require.True(suite.T(), ok)
+	memoID := int(memoIDFloat)
+
+	// ユーザー1は自分のメモが見える
+	req2 := httptest.NewRequest("GET", "/api/memos", nil)
+	req2.Header.Set("X-User-ID", "1")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	assert.Equal(suite.T(), http.StatusOK, w2.Code)
+
+	var listResp map[string]interface{}
+	err = json.Unmarshal(w2.Body.Bytes(), &listResp)
+	require.NoError(suite.T(), err)
+
+	totalFloat, ok := listResp["total"].(float64)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), 1, int(totalFloat))
+
+	// ユーザー2は他人のメモが見えない
+	req3 := httptest.NewRequest("GET", "/api/memos", nil)
+	req3.Header.Set("X-User-ID", "2")
+	w3 := httptest.NewRecorder()
+	router.ServeHTTP(w3, req3)
+
+	assert.Equal(suite.T(), http.StatusOK, w3.Code)
+
+	err = json.Unmarshal(w3.Body.Bytes(), &listResp)
+	require.NoError(suite.T(), err)
+
+	totalFloat, ok = listResp["total"].(float64)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), 0, int(totalFloat))
+
+	// ユーザー2は他人のメモIDを直接指定してもアクセスできない
+	req4 := httptest.NewRequest("GET", fmt.Sprintf("/api/memos/%d", memoID), nil)
+	req4.Header.Set("X-User-ID", "2")
+	w4 := httptest.NewRecorder()
+	router.ServeHTTP(w4, req4)
+
+	assert.Equal(suite.T(), http.StatusNotFound, w4.Code)
+}
+
+// TestUserIsolation_UnauthorizedAccess - 認証なしでのメモアクセスが拒否されることを確認
+func (suite *MemoIntegrationTestSuite) TestUserIsolation_UnauthorizedAccess() {
+	// 新しいルーターに認証ミドルウェアを追加
+	router := gin.New()
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.CORSMiddleware())
+
+	api := router.Group("/api")
+	memos := api.Group("/memos")
+	memos.Use(suite.mockAuthMiddleware())
+	{
+		memos.POST("", suite.memoHandler.CreateMemo)
+		memos.GET("", suite.memoHandler.ListMemos)
+	}
+
+	// 認証なしでメモ一覧取得
+	req1 := httptest.NewRequest("GET", "/api/memos", nil)
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+
+	assert.Equal(suite.T(), http.StatusUnauthorized, w1.Code)
+
+	// 認証なしでメモ作成
+	createReq := map[string]interface{}{
+		"title":    "未認証メモ",
+		"content":  "認証なしで作成されるべきではない",
+		"priority": "low",
+	}
+
+	reqBody, _ := json.Marshal(createReq)
+	req2 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(reqBody))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	assert.Equal(suite.T(), http.StatusUnauthorized, w2.Code)
+}
+
+// TestUserIsolation_UpdateDeleteAccess - 他のユーザーのメモを更新・削除できないことを確認
+func (suite *MemoIntegrationTestSuite) TestUserIsolation_UpdateDeleteAccess() {
+	// 新しいルーターに認証ミドルウェアを追加
+	router := gin.New()
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.CORSMiddleware())
+
+	api := router.Group("/api")
+	memos := api.Group("/memos")
+	memos.Use(suite.mockAuthMiddleware())
+	{
+		memos.POST("", suite.memoHandler.CreateMemo)
+		memos.GET("/:id", suite.memoHandler.GetMemo)
+		memos.PUT("/:id", suite.memoHandler.UpdateMemo)
+		memos.DELETE("/:id", suite.memoHandler.DeleteMemo)
+	}
+
+	// ユーザー1がメモを作成
+	createReq := map[string]interface{}{
+		"title":    "元のタイトル",
+		"content":  "元の内容",
+		"category": "元のカテゴリ",
+		"priority": "medium",
+	}
+
+	reqBody, _ := json.Marshal(createReq)
+	req1 := httptest.NewRequest("POST", "/api/memos", bytes.NewReader(reqBody))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-User-ID", "1")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+
+	assert.Equal(suite.T(), http.StatusCreated, w1.Code)
+
+	var createResp map[string]interface{}
+	err := json.Unmarshal(w1.Body.Bytes(), &createResp)
+	require.NoError(suite.T(), err)
+
+	memoIDFloat, ok := createResp["id"].(float64)
+	require.True(suite.T(), ok)
+	memoID := int(memoIDFloat)
+
+	// ユーザー2が他人のメモを更新しようとする
+	updateReq := map[string]interface{}{
+		"title":    "悪意のあるタイトル",
+		"content":  "悪意のある内容",
+		"category": "悪意のあるカテゴリ",
+		"priority": "low",
+	}
+
+	updateBody, _ := json.Marshal(updateReq)
+	req2 := httptest.NewRequest("PUT", fmt.Sprintf("/api/memos/%d", memoID), bytes.NewReader(updateBody))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-User-ID", "2")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+
+	assert.Equal(suite.T(), http.StatusNotFound, w2.Code)
+
+	// ユーザー1のメモが変更されていないことを確認
+	req3 := httptest.NewRequest("GET", fmt.Sprintf("/api/memos/%d", memoID), nil)
+	req3.Header.Set("X-User-ID", "1")
+	w3 := httptest.NewRecorder()
+	router.ServeHTTP(w3, req3)
+
+	assert.Equal(suite.T(), http.StatusOK, w3.Code)
+
+	var getResp map[string]interface{}
+	err = json.Unmarshal(w3.Body.Bytes(), &getResp)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "元のタイトル", getResp["title"])
+	assert.Equal(suite.T(), "元の内容", getResp["content"])
+	assert.Equal(suite.T(), "元のカテゴリ", getResp["category"])
+
+	// ユーザー2が他人のメモを削除しようとする
+	req4 := httptest.NewRequest("DELETE", fmt.Sprintf("/api/memos/%d", memoID), nil)
+	req4.Header.Set("X-User-ID", "2")
+	w4 := httptest.NewRecorder()
+	router.ServeHTTP(w4, req4)
+
+	assert.Equal(suite.T(), http.StatusNotFound, w4.Code)
+
+	// ユーザー1のメモが存在することを確認
+	req5 := httptest.NewRequest("GET", fmt.Sprintf("/api/memos/%d", memoID), nil)
+	req5.Header.Set("X-User-ID", "1")
+	w5 := httptest.NewRecorder()
+	router.ServeHTTP(w5, req5)
+
+	assert.Equal(suite.T(), http.StatusOK, w5.Code)
+}
+
+// モック認証ミドルウェア - ヘッダーからユーザーIDを取得
+func (suite *MemoIntegrationTestSuite) mockAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userIDHeader := c.GetHeader("X-User-ID")
+		if userIDHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		// ユーザーIDをコンテキストに設定
+		userID, err := strconv.Atoi(userIDHeader)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", userID)
+		c.Next()
+	}
+}
+
+// 基本テスト用のシンプルな認証ミドルウェア（固定ユーザーID=1）
+func (suite *MemoIntegrationTestSuite) simpleAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// テスト用の固定ユーザーID
+		c.Set("user_id", 1)
+		c.Next()
+	}
 }
 
 func TestMemoIntegrationTestSuite(t *testing.T) {

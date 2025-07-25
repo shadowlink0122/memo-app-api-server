@@ -97,6 +97,8 @@ memo-app-api-server/
   - ユーザー名フォーマット検証（3-30文字、英数字とアンダースコア）
   - 同一IPアドレスからの複数アカウント作成制限（デフォルト: 3アカウント/IP）
   - ログアウト時のトークンブラックリスト機能
+  - **完全なユーザー分離**: データベースレベルでユーザー間のデータアクセスを防止
+  - **認証必須**: 全てのメモ操作にユーザー認証が必要
 - **JWT認証**: セキュアなアクセストークンとリフレッシュトークンの管理
 - **アカウント管理**: アクティブ/非アクティブ状態の管理
 
@@ -128,16 +130,20 @@ memo-app-api-server/
 - `GET /health` - ヘルスチェック
 - `GET /hello` - Hello World（テキスト形式）
 
-##### メモAPI（認証必要）
-- `POST /api/memos` - メモの作成
-- `GET /api/memos` - メモ一覧取得（フィルタ・ページネーション対応）
-- `GET /api/memos/:id` - 特定のメモ取得
-- `PUT /api/memos/:id` - メモの更新
-- `DELETE /api/memos/:id` - メモの削除（アクティブ→アーカイブ、アーカイブ済み→完全削除）
-- `DELETE /api/memos/:id/permanent` - メモの完全削除
-- `PATCH /api/memos/:id/archive` - メモのアーカイブ
-- `PATCH /api/memos/:id/restore` - アーカイブメモの復元
-- `GET /api/memos/search?q=検索語` - メモの検索
+##### メモAPI（認証必要・ユーザー固有）
+
+**重要:** 全てのメモ操作はユーザー固有で、認証されたユーザーは自分のメモにのみアクセス可能です。
+
+- `POST /api/memos` - 認証ユーザー専用メモの作成
+- `GET /api/memos` - 認証ユーザーのメモ一覧取得（フィルタ・ページネーション対応）
+- `GET /api/memos/archived` - 認証ユーザーのアーカイブメモ一覧取得
+- `GET /api/memos/:id` - 認証ユーザーの特定メモ取得
+- `PUT /api/memos/:id` - 認証ユーザーのメモ更新
+- `DELETE /api/memos/:id` - 認証ユーザーのメモ削除（アクティブ→アーカイブ、アーカイブ済み→完全削除）
+- `DELETE /api/memos/:id/permanent` - 認証ユーザーのメモ完全削除
+- `PATCH /api/memos/:id/archive` - 認証ユーザーのメモアーカイブ
+- `PATCH /api/memos/:id/restore` - 認証ユーザーのアーカイブメモ復元
+- `GET /api/memos/search?q=検索語` - 認証ユーザーのメモ検索
 
 ##### その他プライベート
 - `GET /api/protected` - 認証が必要なエンドポイント（デモ用）
@@ -146,7 +152,7 @@ memo-app-api-server/
 
 - **LoggerMiddleware** - 構造化ログによるリクエストログ
 - **CORSMiddleware** - CORS設定
-- **AuthMiddleware** - ユーザー認証（現在は空実装）
+- **AuthMiddleware** - JWT認証によるユーザー認証（メモAPIで必須）
 - **RateLimitMiddleware** - レート制限（現在は空実装）
 
 ### ログ機能

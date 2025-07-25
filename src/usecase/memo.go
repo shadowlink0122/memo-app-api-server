@@ -40,15 +40,15 @@ type UpdateMemoRequest struct {
 
 // MemoUsecase defines the interface for memo business logic
 type MemoUsecase interface {
-	CreateMemo(ctx context.Context, req CreateMemoRequest) (*domain.Memo, error)
-	GetMemo(ctx context.Context, id int) (*domain.Memo, error)
-	ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error)
-	UpdateMemo(ctx context.Context, id int, req UpdateMemoRequest) (*domain.Memo, error)
-	DeleteMemo(ctx context.Context, id int) error
-	PermanentDeleteMemo(ctx context.Context, id int) error
-	ArchiveMemo(ctx context.Context, id int) error
-	RestoreMemo(ctx context.Context, id int) error
-	SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error)
+	CreateMemo(ctx context.Context, userID int, req CreateMemoRequest) (*domain.Memo, error)
+	GetMemo(ctx context.Context, userID int, id int) (*domain.Memo, error)
+	ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error)
+	UpdateMemo(ctx context.Context, userID int, id int, req UpdateMemoRequest) (*domain.Memo, error)
+	DeleteMemo(ctx context.Context, userID int, id int) error
+	PermanentDeleteMemo(ctx context.Context, userID int, id int) error
+	ArchiveMemo(ctx context.Context, userID int, id int) error
+	RestoreMemo(ctx context.Context, userID int, id int) error
+	SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error)
 }
 
 type memoUsecase struct {
@@ -62,8 +62,8 @@ func NewMemoUsecase(memoRepo domain.MemoRepository) MemoUsecase {
 	}
 }
 
-// CreateMemo creates a new memo
-func (u *memoUsecase) CreateMemo(ctx context.Context, req CreateMemoRequest) (*domain.Memo, error) {
+// CreateMemo creates a new memo for a specific user
+func (u *memoUsecase) CreateMemo(ctx context.Context, userID int, req CreateMemoRequest) (*domain.Memo, error) {
 	if err := u.validateCreateRequest(req); err != nil {
 		return nil, err
 	}
@@ -74,6 +74,7 @@ func (u *memoUsecase) CreateMemo(ctx context.Context, req CreateMemoRequest) (*d
 	}
 
 	memo := &domain.Memo{
+		UserID:    userID,
 		Title:     req.Title,
 		Content:   req.Content,
 		Category:  req.Category,
@@ -87,11 +88,11 @@ func (u *memoUsecase) CreateMemo(ctx context.Context, req CreateMemoRequest) (*d
 	return u.memoRepo.Create(ctx, memo)
 }
 
-// GetMemo retrieves a memo by ID
-func (u *memoUsecase) GetMemo(ctx context.Context, id int) (*domain.Memo, error) {
-	memo, err := u.memoRepo.GetByID(ctx, id)
+// GetMemo retrieves a memo by ID for a specific user
+func (u *memoUsecase) GetMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	memo, err := u.memoRepo.GetByID(ctx, id, userID)
 	if err != nil {
-		if strings.Contains(err.Error(), "memo not found") {
+		if strings.Contains(err.Error(), "memo not found") || strings.Contains(err.Error(), "access denied") {
 			return nil, ErrMemoNotFound
 		}
 		return nil, err
@@ -99,23 +100,23 @@ func (u *memoUsecase) GetMemo(ctx context.Context, id int) (*domain.Memo, error)
 	return memo, nil
 }
 
-// ListMemos retrieves memos with filtering
-func (u *memoUsecase) ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+// ListMemos retrieves memos with filtering for a specific user
+func (u *memoUsecase) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	if err := u.validateAndNormalizeFilter(&filter); err != nil {
 		return nil, 0, err
 	}
 
-	return u.memoRepo.List(ctx, filter)
+	return u.memoRepo.List(ctx, userID, filter)
 }
 
-// UpdateMemo updates an existing memo
-func (u *memoUsecase) UpdateMemo(ctx context.Context, id int, req UpdateMemoRequest) (*domain.Memo, error) {
+// UpdateMemo updates an existing memo for a specific user
+func (u *memoUsecase) UpdateMemo(ctx context.Context, userID int, id int, req UpdateMemoRequest) (*domain.Memo, error) {
 	if err := u.validateUpdateRequest(req); err != nil {
 		return nil, err
 	}
 
-	// 既存のメモを取得
-	existingMemo, err := u.memoRepo.GetByID(ctx, id)
+	// 既存のメモを取得（ユーザー固有）
+	existingMemo, err := u.memoRepo.GetByID(ctx, id, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -144,36 +145,36 @@ func (u *memoUsecase) UpdateMemo(ctx context.Context, id int, req UpdateMemoRequ
 
 	updatedMemo.UpdatedAt = time.Now()
 
-	return u.memoRepo.Update(ctx, id, &updatedMemo)
+	return u.memoRepo.Update(ctx, id, userID, &updatedMemo)
 }
 
-// DeleteMemo handles memo deletion (archives active memos, permanently deletes archived ones)
-func (u *memoUsecase) DeleteMemo(ctx context.Context, id int) error {
-	return u.memoRepo.Delete(ctx, id)
+// DeleteMemo handles memo deletion (archives active memos, permanently deletes archived ones) for a specific user
+func (u *memoUsecase) DeleteMemo(ctx context.Context, userID int, id int) error {
+	return u.memoRepo.Delete(ctx, id, userID)
 }
 
-// PermanentDeleteMemo permanently deletes a memo from database
-func (u *memoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
-	return u.memoRepo.PermanentDelete(ctx, id)
+// PermanentDeleteMemo permanently deletes a memo from database for a specific user
+func (u *memoUsecase) PermanentDeleteMemo(ctx context.Context, userID int, id int) error {
+	return u.memoRepo.PermanentDelete(ctx, id, userID)
 }
 
-// ArchiveMemo archives a memo
-func (u *memoUsecase) ArchiveMemo(ctx context.Context, id int) error {
-	return u.memoRepo.Archive(ctx, id)
+// ArchiveMemo archives a memo for a specific user
+func (u *memoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) error {
+	return u.memoRepo.Archive(ctx, id, userID)
 }
 
-// RestoreMemo restores an archived memo
-func (u *memoUsecase) RestoreMemo(ctx context.Context, id int) error {
-	return u.memoRepo.Restore(ctx, id)
+// RestoreMemo restores an archived memo for a specific user
+func (u *memoUsecase) RestoreMemo(ctx context.Context, userID int, id int) error {
+	return u.memoRepo.Restore(ctx, id, userID)
 }
 
-// SearchMemos searches memos
-func (u *memoUsecase) SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+// SearchMemos searches memos for a specific user
+func (u *memoUsecase) SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	if err := u.validateAndNormalizeFilter(&filter); err != nil {
 		return nil, 0, err
 	}
 
-	return u.memoRepo.Search(ctx, query, filter)
+	return u.memoRepo.Search(ctx, userID, query, filter)
 }
 
 // validateCreateRequest validates create memo request

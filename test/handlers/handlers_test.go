@@ -30,57 +30,57 @@ type MockMemoUsecase struct {
 }
 
 // PermanentDeleteMemo implements usecase.MemoUsecase.
-func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) CreateMemo(ctx context.Context, req usecase.CreateMemoRequest) (*domain.Memo, error) {
-	args := m.Called(ctx, req)
+func (m *MockMemoUsecase) CreateMemo(ctx context.Context, userID int, req usecase.CreateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) GetMemo(ctx context.Context, id int) (*domain.Memo, error) {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) GetMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, filter)
+func (m *MockMemoUsecase) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
 }
 
-func (m *MockMemoUsecase) UpdateMemo(ctx context.Context, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
-	args := m.Called(ctx, id, req)
+func (m *MockMemoUsecase) UpdateMemo(ctx context.Context, userID int, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, id, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, query, filter)
+func (m *MockMemoUsecase) SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, query, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
 }
 
@@ -93,6 +93,8 @@ func setupTestRouter(mockUsecase *MockMemoUsecase) *gin.Engine {
 
 	// ルートの設定
 	api := r.Group("/api/memos")
+	// モック認証ミドルウェアを追加
+	api.Use(mockAuthMiddleware())
 	{
 		api.POST("", memoHandler.CreateMemo)
 		api.GET("", memoHandler.ListMemos)
@@ -106,6 +108,15 @@ func setupTestRouter(mockUsecase *MockMemoUsecase) *gin.Engine {
 	}
 
 	return r
+}
+
+// モック認証ミドルウェア - テスト用
+func mockAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// テスト用の固定ユーザーID
+		c.Set("user_id", 1)
+		c.Next()
+	}
 }
 
 func TestMemoHandler_CreateMemo(t *testing.T) {
@@ -125,8 +136,9 @@ func TestMemoHandler_CreateMemo(t *testing.T) {
 				Priority: "medium",
 			},
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("CreateMemo", mock.Anything, mock.AnythingOfType("usecase.CreateMemoRequest")).Return(&domain.Memo{
+				m.On("CreateMemo", mock.Anything, 1, mock.AnythingOfType("usecase.CreateMemoRequest")).Return(&domain.Memo{
 					ID:       1,
+					UserID:   1,
 					Title:    "Test Memo",
 					Content:  "This is a test memo",
 					Category: "Test",
@@ -191,8 +203,9 @@ func TestMemoHandler_GetMemo(t *testing.T) {
 			name:   "successful get",
 			memoID: "1",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("GetMemo", mock.Anything, 1).Return(&domain.Memo{
+				m.On("GetMemo", mock.Anything, 1, 1).Return(&domain.Memo{
 					ID:      1,
+					UserID:  1,
 					Title:   "Test Memo",
 					Content: "This is a test memo",
 					Status:  domain.StatusActive,
@@ -210,7 +223,7 @@ func TestMemoHandler_GetMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: "999",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("GetMemo", mock.Anything, 999).Return(nil, usecase.ErrMemoNotFound)
+				m.On("GetMemo", mock.Anything, 1, 999).Return(nil, usecase.ErrMemoNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
 		},
@@ -245,15 +258,17 @@ func TestMemoHandler_GetMemo(t *testing.T) {
 func TestMemoHandler_ListMemos(t *testing.T) {
 	mockUsecase := new(MockMemoUsecase)
 
-	mockUsecase.On("ListMemos", mock.Anything, mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+	mockUsecase.On("ListMemos", mock.Anything, 1, mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
 		{
 			ID:      1,
+			UserID:  1,
 			Title:   "Test Memo 1",
 			Content: "Content 1",
 			Status:  domain.StatusActive,
 		},
 		{
 			ID:      2,
+			UserID:  1,
 			Title:   "Test Memo 2",
 			Content: "Content 2",
 			Status:  domain.StatusActive,
@@ -293,8 +308,9 @@ func TestMemoHandler_UpdateMemo(t *testing.T) {
 				Content: stringPtr("Updated Content"),
 			},
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("UpdateMemo", mock.Anything, 1, mock.AnythingOfType("usecase.UpdateMemoRequest")).Return(&domain.Memo{
+				m.On("UpdateMemo", mock.Anything, 1, 1, mock.AnythingOfType("usecase.UpdateMemoRequest")).Return(&domain.Memo{
 					ID:        1,
+					UserID:    1,
 					Title:     "Updated Title",
 					Content:   "Updated Content",
 					Status:    domain.StatusActive,
@@ -324,7 +340,7 @@ func TestMemoHandler_UpdateMemo(t *testing.T) {
 				Title: stringPtr("Updated Title"),
 			},
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("UpdateMemo", mock.Anything, 999, mock.AnythingOfType("usecase.UpdateMemoRequest")).Return(nil, usecase.ErrMemoNotFound)
+				m.On("UpdateMemo", mock.Anything, 1, 999, mock.AnythingOfType("usecase.UpdateMemoRequest")).Return(nil, usecase.ErrMemoNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
 		},
@@ -377,7 +393,7 @@ func TestMemoHandler_DeleteMemo(t *testing.T) {
 			name:   "successful delete",
 			memoID: "1",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("DeleteMemo", mock.Anything, 1).Return(nil)
+				m.On("DeleteMemo", mock.Anything, 1, 1).Return(nil)
 			},
 			expectedStatus: http.StatusNoContent,
 		},
@@ -391,7 +407,7 @@ func TestMemoHandler_DeleteMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: "999",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("DeleteMemo", mock.Anything, 999).Return(usecase.ErrMemoNotFound)
+				m.On("DeleteMemo", mock.Anything, 1, 999).Return(usecase.ErrMemoNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
 		},
@@ -427,9 +443,10 @@ func TestMemoHandler_SearchMemos(t *testing.T) {
 			name:        "successful search",
 			queryParams: "?search=test&limit=10&page=1",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("SearchMemos", mock.Anything, "test", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+				m.On("SearchMemos", mock.Anything, 1, "test", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
 					{
 						ID:      1,
+						UserID:  1,
 						Title:   "Test Memo",
 						Content: "Test content",
 						Status:  domain.StatusActive,
@@ -442,7 +459,7 @@ func TestMemoHandler_SearchMemos(t *testing.T) {
 			name:        "empty search query",
 			queryParams: "?search=",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("SearchMemos", mock.Anything, "", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{}, 0, nil)
+				m.On("SearchMemos", mock.Anything, 1, "", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{}, 0, nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -484,7 +501,7 @@ func TestMemoHandler_PermanentDeleteMemo(t *testing.T) {
 			name:   "successful permanent delete",
 			memoID: "1",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("PermanentDeleteMemo", mock.Anything, 1).Return(nil)
+				m.On("PermanentDeleteMemo", mock.Anything, 1, 1).Return(nil)
 			},
 			expectedStatus: http.StatusNoContent,
 		},
@@ -498,7 +515,7 @@ func TestMemoHandler_PermanentDeleteMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: "999",
 			mockSetup: func(m *MockMemoUsecase) {
-				m.On("PermanentDeleteMemo", mock.Anything, 999).Return(usecase.ErrMemoNotFound)
+				m.On("PermanentDeleteMemo", mock.Anything, 1, 999).Return(usecase.ErrMemoNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
 		},

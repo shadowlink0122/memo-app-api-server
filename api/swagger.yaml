@@ -7,17 +7,25 @@ info:
     ## 認証について
 
     メモAPI（`/api/memos/*`）のエンドポイントには認証が必要です。
-    現在は空実装ですが、将来的にJWT認証を実装予定です。
+    JWT Bearer認証を使用して、ユーザーの認証と認可を行います。
+
+    **重要**: 各ユーザーは自分のメモのみアクセス可能で、他のユーザーのメモには一切アクセスできません。
 
     ## 機能
 
-    - メモのCRUD操作
+    - ユーザー固有のメモのCRUD操作
     - カテゴリとタグによる分類
     - 優先度設定（low/medium/high）
     - ステータス管理（active/archived）
     - 段階的削除システム（誤削除防止）
-    - 全文検索機能
+    - 全文検索機能（ユーザー固有）
     - ページネーション対応
+
+    ## セキュリティ
+
+    - 全てのメモ操作はユーザー認証が必要
+    - データベースレベルでユーザー分離を実装
+    - 他のユーザーのメモへのアクセスを完全に防止
 
     ## 削除システム
 
@@ -436,7 +444,8 @@ paths:
         - Memo
       summary: メモ一覧取得
       description: |
-        メモの一覧を取得します。フィルタリング、検索、ページネーションに対応しています。
+        認証されたユーザーが所有するメモの一覧を取得します。
+        フィルタリング、検索、ページネーションに対応しており、他のユーザーのメモは表示されません。
       security:
         - bearerAuth: []
       parameters:
@@ -514,7 +523,9 @@ paths:
       tags:
         - Memo
       summary: メモ作成
-      description: 新しいメモを作成します
+      description: |
+        認証されたユーザー専用の新しいメモを作成します。
+        作成されたメモは他のユーザーからは見えません。
       security:
         - bearerAuth: []
       requestBody:
@@ -548,7 +559,9 @@ paths:
       tags:
         - Memo
       summary: メモ詳細取得
-      description: 指定されたIDのメモの詳細を取得します
+      description: |
+        認証されたユーザーが所有する指定IDのメモの詳細を取得します。
+        他のユーザーのメモにはアクセスできません。
       security:
         - bearerAuth: []
       parameters:
@@ -583,7 +596,9 @@ paths:
       tags:
         - Memo
       summary: メモ更新
-      description: 指定されたIDのメモを更新します
+      description: |
+        認証されたユーザーが所有する指定IDのメモを更新します。
+        他のユーザーのメモは更新できません。
       security:
         - bearerAuth: []
       parameters:
@@ -631,7 +646,8 @@ paths:
         - Memo
       summary: メモ段階的削除
       description: |
-        指定されたIDのメモを段階的に削除します。
+        認証されたユーザーが所有する指定IDのメモを段階的に削除します。
+        他のユーザーのメモは削除できません。
 
         **削除動作:**
         - **アクティブメモ**: アーカイブに移動（復元可能）
@@ -670,7 +686,8 @@ paths:
         - Memo
       summary: メモ完全削除
       description: |
-        指定されたIDのメモを完全削除します。
+        認証されたユーザーが所有する指定IDのメモを完全削除します。
+        他のユーザーのメモは削除できません。
 
         **注意:** この操作は取り消せません。データは完全に失われます。
 
@@ -709,7 +726,9 @@ paths:
       tags:
         - Memo
       summary: メモアーカイブ
-      description: 指定されたIDのメモをアーカイブします
+      description: |
+        認証されたユーザーが所有する指定IDのメモをアーカイブします。
+        他のユーザーのメモはアーカイブできません。
       security:
         - bearerAuth: []
       parameters:
@@ -745,7 +764,9 @@ paths:
       tags:
         - Memo
       summary: メモ復元
-      description: アーカイブされたメモを復元します
+      description: |
+        認証されたユーザーが所有するアーカイブされたメモを復元します。
+        他のユーザーのメモは復元できません。
       security:
         - bearerAuth: []
       parameters:
@@ -782,7 +803,8 @@ paths:
         - Memo
       summary: メモ検索
       description: |
-        メモを検索します。タイトルとコンテンツの全文検索が可能です。
+        認証されたユーザーが所有するメモを検索します。
+        タイトルとコンテンツの全文検索が可能で、他のユーザーのメモは検索対象に含まれません。
       security:
         - bearerAuth: []
       parameters:
@@ -819,6 +841,79 @@ paths:
                 $ref: "#/components/schemas/MemoListResponse"
         "400":
           description: 不正な検索パラメータ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証が必要です
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memos/archived:
+    get:
+      tags:
+        - Memo
+      summary: アーカイブメモ一覧取得
+      description: |
+        認証されたユーザーが所有するアーカイブされたメモの一覧を取得します。
+        フィルタリング、検索、ページネーションに対応しており、他のユーザーのメモは表示されません。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: カテゴリでフィルタ
+          required: false
+          schema:
+            type: string
+        - name: priority
+          in: query
+          description: 優先度でフィルタ
+          required: false
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: search
+          in: query
+          description: 全文検索キーワード
+          required: false
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: タグでフィルタ（カンマ区切り）
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: ページ番号
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: アーカイブメモ一覧取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoListResponse"
+        "400":
+          description: 不正なリクエストパラメータ
           content:
             application/json:
               schema:

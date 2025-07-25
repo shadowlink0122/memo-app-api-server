@@ -130,56 +130,57 @@ type MockMemoUsecase struct {
 }
 
 // PermanentDeleteMemo implements usecase.MemoUsecase.
-func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, id int) error {
-	panic("unimplemented")
+func (m *MockMemoUsecase) PermanentDeleteMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) CreateMemo(ctx context.Context, req usecase.CreateMemoRequest) (*domain.Memo, error) {
-	args := m.Called(ctx, req)
+func (m *MockMemoUsecase) CreateMemo(ctx context.Context, userID int, req usecase.CreateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) GetMemo(ctx context.Context, id int) (*domain.Memo, error) {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) GetMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) ListMemos(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, filter)
+func (m *MockMemoUsecase) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
 }
 
-func (m *MockMemoUsecase) UpdateMemo(ctx context.Context, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
-	args := m.Called(ctx, id, req)
+func (m *MockMemoUsecase) UpdateMemo(ctx context.Context, userID int, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, id, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) SearchMemos(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, query, filter)
+func (m *MockMemoUsecase) SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, query, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
 }
 
@@ -551,7 +552,7 @@ func TestMemoAPIWithMocks(t *testing.T) {
 
 	t.Run("Create Memo with Mock", func(t *testing.T) {
 		// Mockの設定
-		mockUsecase.On("CreateMemo", mock.Anything, mock.AnythingOfType("usecase.CreateMemoRequest")).Return(&domain.Memo{
+		mockUsecase.On("CreateMemo", mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("usecase.CreateMemoRequest")).Return(&domain.Memo{
 			ID:       1,
 			Title:    "Test Memo",
 			Content:  "Test Content",
@@ -594,7 +595,7 @@ func TestMemoAPIWithMocks(t *testing.T) {
 		router := setupTestRouter(mockUsecase)
 
 		// Mockの設定
-		mockUsecase.On("GetMemo", mock.Anything, 1).Return(&domain.Memo{
+		mockUsecase.On("GetMemo", mock.Anything, mock.AnythingOfType("int"), 1).Return(&domain.Memo{
 			ID:      1,
 			Title:   "Test Memo",
 			Content: "Test Content",
@@ -624,7 +625,7 @@ func TestMemoAPIWithMocks(t *testing.T) {
 		router := setupTestRouter(mockUsecase)
 
 		// Mockの設定 - メモが見つからない場合（適切なエラータイプを使用）
-		mockUsecase.On("GetMemo", mock.Anything, 999).Return(nil, usecase.ErrMemoNotFound)
+		mockUsecase.On("GetMemo", mock.Anything, mock.AnythingOfType("int"), 999).Return(nil, usecase.ErrMemoNotFound)
 
 		// リクエストの実行
 		w := httptest.NewRecorder()
@@ -644,7 +645,7 @@ func TestMemoAPIWithMocks(t *testing.T) {
 		router := setupTestRouter(mockUsecase)
 
 		// Mockの設定
-		mockUsecase.On("ListMemos", mock.Anything, mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+		mockUsecase.On("ListMemos", mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
 			{ID: 1, Title: "Memo 1", Content: "Content 1", Status: domain.StatusActive},
 			{ID: 2, Title: "Memo 2", Content: "Content 2", Status: domain.StatusActive},
 		}, 2, nil)
@@ -667,7 +668,7 @@ func TestMemoAPIWithMocks(t *testing.T) {
 		router := setupTestRouter(mockUsecase)
 
 		// Mockの設定 - クエリパラメータに"test"が含まれる場合
-		mockUsecase.On("SearchMemos", mock.Anything, "test", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
+		mockUsecase.On("SearchMemos", mock.Anything, mock.AnythingOfType("int"), "test", mock.AnythingOfType("domain.MemoFilter")).Return([]domain.Memo{
 			{ID: 1, Title: "Test Memo", Content: "Test Content", Status: domain.StatusActive},
 		}, 1, nil)
 

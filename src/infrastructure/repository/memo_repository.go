@@ -40,6 +40,7 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 
 	now := time.Now()
 	newMemo := &domain.Memo{
+		UserID:    memo.UserID,
 		Title:     memo.Title,
 		Content:   memo.Content,
 		Category:  memo.Category,
@@ -51,12 +52,12 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 	}
 
 	query := `
-		INSERT INTO memos (title, content, category, tags, priority, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO memos (user_id, title, content, category, tags, priority, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id`
 
 	err = r.db.QueryRowContext(ctx, query,
-		newMemo.Title, newMemo.Content, newMemo.Category, string(tagsJSON),
+		newMemo.UserID, newMemo.Title, newMemo.Content, newMemo.Category, string(tagsJSON),
 		string(newMemo.Priority), string(newMemo.Status), newMemo.CreatedAt, newMemo.UpdatedAt,
 	).Scan(&newMemo.ID)
 
@@ -65,15 +66,15 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 		return nil, fmt.Errorf("failed to create memo: %w", err)
 	}
 
-	r.logger.WithField("memo_id", newMemo.ID).Info("メモを作成しました")
+	r.logger.WithField("memo_id", newMemo.ID).WithField("user_id", newMemo.UserID).Info("メモを作成しました")
 	return newMemo, nil
 }
 
-// GetByID retrieves a memo by ID
-func (r *MemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, error) {
+// GetByID retrieves a memo by ID for a specific user
+func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	query := `
-		SELECT id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
-		FROM memos WHERE id = $1`
+		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
+		FROM memos WHERE id = $1 AND user_id = $2`
 
 	var memo domain.Memo
 	var tagsJSON string
@@ -81,16 +82,16 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, err
 	var statusStr string
 	var completedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&memo.ID, &memo.Title, &memo.Content, &memo.Category, &tagsJSON,
+	err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
+		&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category, &tagsJSON,
 		&priorityStr, &statusStr, &memo.CreatedAt, &memo.UpdatedAt, &completedAt,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("memo not found")
+			return nil, fmt.Errorf("memo not found or access denied")
 		}
-		r.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
+		r.logger.WithError(err).WithField("memo_id", id).WithField("user_id", userID).Error("メモの取得に失敗")
 		return nil, fmt.Errorf("failed to get memo: %w", err)
 	}
 
@@ -108,17 +109,18 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, err
 	return &memo, nil
 }
 
-// List retrieves memos with filtering
-func (r *MemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	// ベースクエリ
-	baseQuery := `FROM memos WHERE 1=1`
+// List retrieves memos with filtering for a specific user
+func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	// ベースクエリ（ユーザー固有）
+	baseQuery := `FROM memos WHERE user_id = $1`
 	countQuery := `SELECT COUNT(*) ` + baseQuery
 	selectQuery := `
-		SELECT id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
+		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
 		` + baseQuery
 
 	var args []interface{}
-	argIndex := 1
+	args = append(args, userID) // ユーザーIDを最初の引数として追加
+	argIndex := 2
 
 	// フィルター条件を追加
 	if filter.Category != "" {
@@ -194,7 +196,7 @@ func (r *MemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]
 
 		err := rows.Scan(
 			&memo.ID, &memo.Title, &memo.Content, &memo.Category, &tagsJSON,
-			&priorityStr, &statusStr, &memo.CreatedAt, &memo.UpdatedAt, &completedAt,
+			&priorityStr, &statusStr, &memo.CreatedAt, &memo.UpdatedAt, &completedAt, &memo.UserID,
 		)
 		if err != nil {
 			r.logger.WithError(err).Error("メモのスキャンに失敗")
@@ -223,7 +225,7 @@ func (r *MemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]
 }
 
 // Update updates a memo
-func (r *MemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) (*domain.Memo, error) {
+func (r *MemoRepository) Update(ctx context.Context, id int, userID int, memo *domain.Memo) (*domain.Memo, error) {
 	// タグを JSON 文字列に変換
 	tagsJSON, err := json.Marshal(memo.Tags)
 	if err != nil {
@@ -240,16 +242,16 @@ func (r *MemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) 
 
 	query := `
 		UPDATE memos SET 
-			title = $2, 
-			content = $3, 
-			category = $4, 
-			tags = $5, 
-			priority = $6, 
-			status = $7, 
-			updated_at = $8, 
-			completed_at = $9
-		WHERE id = $1
-		RETURNING id, title, content, category, tags, priority, status, created_at, updated_at, completed_at`
+			title = $3, 
+			content = $4, 
+			category = $5, 
+			tags = $6, 
+			priority = $7, 
+			status = $8, 
+			updated_at = $9, 
+			completed_at = $10
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at`
 
 	var updatedMemo domain.Memo
 	var tagsJSONResult string
@@ -258,10 +260,10 @@ func (r *MemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) 
 	var completedAt sql.NullTime
 
 	err = r.db.QueryRowContext(ctx, query,
-		id, memo.Title, memo.Content, memo.Category, string(tagsJSON),
+		id, userID, memo.Title, memo.Content, memo.Category, string(tagsJSON),
 		string(memo.Priority), string(memo.Status), memo.UpdatedAt, memo.CompletedAt,
 	).Scan(
-		&updatedMemo.ID, &updatedMemo.Title, &updatedMemo.Content, &updatedMemo.Category, &tagsJSONResult,
+		&updatedMemo.ID, &updatedMemo.UserID, &updatedMemo.Title, &updatedMemo.Content, &updatedMemo.Category, &tagsJSONResult,
 		&priorityStr, &statusStr, &updatedMemo.CreatedAt, &updatedMemo.UpdatedAt, &completedAt,
 	)
 
@@ -289,11 +291,11 @@ func (r *MemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) 
 }
 
 // Delete handles memo deletion with staged approach
-func (r *MemoRepository) Delete(ctx context.Context, id int) error {
+func (r *MemoRepository) Delete(ctx context.Context, id int, userID int) error {
 	r.logger.WithField("memo_id", id).Info("=== インフラストラクチャリポジトリのDeleteメソッドが呼ばれました ===")
 
 	// まず、メモの現在の状態を確認
-	memo, err := r.GetByID(ctx, id)
+	memo, err := r.GetByID(ctx, id, userID)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
 		return err
@@ -304,19 +306,19 @@ func (r *MemoRepository) Delete(ctx context.Context, id int) error {
 	// すでにアーカイブ済みの場合は完全削除
 	if memo.Status == domain.StatusArchived {
 		r.logger.WithField("memo_id", id).Info("アーカイブ済みメモを完全削除します")
-		return r.PermanentDelete(ctx, id)
+		return r.PermanentDelete(ctx, id, userID)
 	}
 
 	// アクティブなメモの場合はアーカイブに移動
 	r.logger.WithField("memo_id", id).Info("メモをアーカイブに移動します")
-	return r.Archive(ctx, id)
+	return r.Archive(ctx, id, userID)
 }
 
 // PermanentDelete permanently deletes a memo from database
-func (r *MemoRepository) PermanentDelete(ctx context.Context, id int) error {
-	query := `DELETE FROM memos WHERE id = $1`
+func (r *MemoRepository) PermanentDelete(ctx context.Context, id int, userID int) error {
+	query := `DELETE FROM memos WHERE id = $1 AND user_id = $2`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := r.db.ExecContext(ctx, query, id, userID)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
 		return fmt.Errorf("failed to permanently delete memo: %w", err)
@@ -336,10 +338,10 @@ func (r *MemoRepository) PermanentDelete(ctx context.Context, id int) error {
 }
 
 // Archive archives a memo
-func (r *MemoRepository) Archive(ctx context.Context, id int) error {
+func (r *MemoRepository) Archive(ctx context.Context, id int, userID int) error {
 	r.logger.WithField("memo_id", id).Info("=== Archiveメソッドが呼ばれました ===")
 
-	memo, err := r.GetByID(ctx, id)
+	memo, err := r.GetByID(ctx, id, userID)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).Error("アーカイブ対象メモの取得に失敗")
 		return err
@@ -351,7 +353,7 @@ func (r *MemoRepository) Archive(ctx context.Context, id int) error {
 	now := time.Now()
 	memo.CompletedAt = &now
 
-	updatedMemo, err := r.Update(ctx, id, memo)
+	updatedMemo, err := r.Update(ctx, id, userID, memo)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).Error("アーカイブ更新に失敗")
 		return err
@@ -362,8 +364,8 @@ func (r *MemoRepository) Archive(ctx context.Context, id int) error {
 }
 
 // Restore restores an archived memo
-func (r *MemoRepository) Restore(ctx context.Context, id int) error {
-	memo, err := r.GetByID(ctx, id)
+func (r *MemoRepository) Restore(ctx context.Context, id int, userID int) error {
+	memo, err := r.GetByID(ctx, id, userID)
 	if err != nil {
 		return err
 	}
@@ -371,12 +373,12 @@ func (r *MemoRepository) Restore(ctx context.Context, id int) error {
 	memo.Status = domain.StatusActive
 	memo.CompletedAt = nil
 
-	_, err = r.Update(ctx, id, memo)
+	_, err = r.Update(ctx, id, userID, memo)
 	return err
 }
 
 // Search searches memos by query
-func (r *MemoRepository) Search(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+func (r *MemoRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	// 検索クエリのバリデーションとサニタイゼーション
 	if err := r.sqlSanitizer.ValidateSearchQuery(query); err != nil {
 		r.logger.WithError(err).WithField("query", query).Error("危険な検索クエリが検出されました")
@@ -395,5 +397,5 @@ func (r *MemoRepository) Search(ctx context.Context, query string, filter domain
 
 	// サニタイズされた検索クエリをフィルターに設定
 	filter.Search = sanitizedQuery
-	return r.List(ctx, filter)
+	return r.List(ctx, userID, filter)
 }

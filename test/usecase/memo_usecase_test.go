@@ -17,11 +17,6 @@ type MockMemoRepository struct {
 	mock.Mock
 }
 
-// PermanentDelete implements domain.MemoRepository.
-func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
-	panic("unimplemented")
-}
-
 func (m *MockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
 	args := m.Called(ctx, memo)
 	if args.Get(0) == nil {
@@ -30,45 +25,51 @@ func (m *MockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*do
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) GetByID(ctx context.Context, id int) (*domain.Memo, error) {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
+	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) List(ctx context.Context, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, filter)
+func (m *MockMemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
 }
 
-func (m *MockMemoRepository) Update(ctx context.Context, id int, memo *domain.Memo) (*domain.Memo, error) {
-	args := m.Called(ctx, id, memo)
+func (m *MockMemoRepository) Update(ctx context.Context, id int, userID int, memo *domain.Memo) (*domain.Memo, error) {
+	args := m.Called(ctx, id, userID, memo)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) Delete(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) Delete(ctx context.Context, id int, userID int) error {
+	args := m.Called(ctx, id, userID)
 	return args.Error(0)
 }
 
-func (m *MockMemoRepository) Archive(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) Archive(ctx context.Context, id int, userID int) error {
+	args := m.Called(ctx, id, userID)
 	return args.Error(0)
 }
 
-func (m *MockMemoRepository) Restore(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) Restore(ctx context.Context, id int, userID int) error {
+	args := m.Called(ctx, id, userID)
 	return args.Error(0)
 }
 
-func (m *MockMemoRepository) Search(ctx context.Context, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
-	args := m.Called(ctx, query, filter)
+func (m *MockMemoRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	args := m.Called(ctx, userID, query, filter)
 	return args.Get(0).([]domain.Memo), args.Get(1).(int), args.Error(2)
+}
+
+// PermanentDelete implements domain.MemoRepository.
+func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int, userID int) error {
+	args := m.Called(ctx, id, userID)
+	return args.Error(0)
 }
 
 func TestMemoUsecase_CreateMemo(t *testing.T) {
@@ -153,7 +154,8 @@ func TestMemoUsecase_CreateMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			result, err := uc.CreateMemo(context.Background(), tt.request)
+			// Act
+			result, err := uc.CreateMemo(context.Background(), 1, tt.request)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -182,7 +184,7 @@ func TestMemoUsecase_GetMemo(t *testing.T) {
 			name:   "successful get",
 			memoID: 1,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("GetByID", mock.Anything, 1).Return(&domain.Memo{
+				m.On("GetByID", mock.Anything, 1, 1).Return(&domain.Memo{
 					ID:      1,
 					Title:   "Test Memo",
 					Content: "Test Content",
@@ -195,7 +197,7 @@ func TestMemoUsecase_GetMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: 999,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("GetByID", mock.Anything, 999).Return(nil, assert.AnError)
+				m.On("GetByID", mock.Anything, 999, 1).Return(nil, assert.AnError)
 			},
 			expectedError: true,
 		},
@@ -208,7 +210,7 @@ func TestMemoUsecase_GetMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			result, err := uc.GetMemo(context.Background(), tt.memoID)
+			result, err := uc.GetMemo(context.Background(), 1, tt.memoID)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -247,11 +249,11 @@ func TestMemoUsecase_ListMemos(t *testing.T) {
 		Limit: 10,
 	}
 
-	mockRepo.On("List", mock.Anything, filter).Return(expectedMemos, 2, nil)
+	mockRepo.On("List", mock.Anything, 1, filter).Return(expectedMemos, 2, nil)
 
 	uc := usecase.NewMemoUsecase(mockRepo)
 
-	result, total, err := uc.ListMemos(context.Background(), filter)
+	result, total, err := uc.ListMemos(context.Background(), 1, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMemos, result)
@@ -271,7 +273,7 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 			name:   "successful archive",
 			memoID: 1,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Archive", mock.Anything, 1).Return(nil)
+				m.On("Archive", mock.Anything, 1, 1).Return(nil)
 			},
 			expectedError: false,
 		},
@@ -279,7 +281,7 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: 999,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Archive", mock.Anything, 999).Return(assert.AnError)
+				m.On("Archive", mock.Anything, 999, 1).Return(assert.AnError)
 			},
 			expectedError: true,
 		},
@@ -292,7 +294,7 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			err := uc.ArchiveMemo(context.Background(), tt.memoID)
+			err := uc.ArchiveMemo(context.Background(), 1, tt.memoID)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -316,7 +318,7 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 			name:   "successful restore",
 			memoID: 1,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Restore", mock.Anything, 1).Return(nil)
+				m.On("Restore", mock.Anything, 1, 1).Return(nil)
 			},
 			expectedError: false,
 		},
@@ -324,7 +326,7 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: 999,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Restore", mock.Anything, 999).Return(assert.AnError)
+				m.On("Restore", mock.Anything, 999, 1).Return(assert.AnError)
 			},
 			expectedError: true,
 		},
@@ -337,7 +339,7 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			err := uc.RestoreMemo(context.Background(), tt.memoID)
+			err := uc.RestoreMemo(context.Background(), 1, tt.memoID)
 
 			if tt.expectedError {
 				assert.Error(t, err)
