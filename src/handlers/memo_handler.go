@@ -59,7 +59,7 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("memo_id", memo.ID).Info("メモを作成しました")
+	h.logger.WithField("memo_id", memo.ID).WithField("returned_memo_user_id", memo.UserID).Info("メモを作成しました")
 	c.JSON(http.StatusCreated, memo)
 }
 

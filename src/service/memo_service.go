@@ -19,6 +19,7 @@ type MemoService struct {
 
 // NewMemoService creates a new memo service
 func NewMemoService(repo repository.MemoRepositoryInterface, logger *logrus.Logger) *MemoService {
+	logger.WithField("repo_type", fmt.Sprintf("%T", repo)).Info("MemoService initialized with repository")
 	return &MemoService{
 		repo:   repo,
 		logger: logger,
@@ -93,12 +94,12 @@ func (s *MemoService) DeleteMemo(ctx context.Context, userID int, id int) error 
 
 // ArchiveMemo archives a memo (sets status to archived)
 func (s *MemoService) ArchiveMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
-	status := "archived"
-	req := &models.UpdateMemoRequest{
-		Status: &status,
+	// statusのみを安全に更新する
+	err := s.repo.Archive(ctx, userID, id)
+	if err != nil {
+		return nil, err
 	}
-
-	return s.UpdateMemo(ctx, userID, id, req)
+	return s.repo.GetByID(ctx, id, userID)
 }
 
 // RestoreMemo restores an archived memo (sets status to active)

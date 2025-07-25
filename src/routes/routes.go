@@ -2,7 +2,6 @@ package routes
 
 import (
 	"memo-app/src/handlers"
-	"memo-app/src/interface/handler"
 	"memo-app/src/middleware"
 	"memo-app/src/repository"
 	"memo-app/src/service"
@@ -11,7 +10,7 @@ import (
 )
 
 // SetupRoutes sets up all API routes
-func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *handlers.AuthHandler, jwtService service.JWTService, userRepo repository.UserRepository) {
+func SetupRoutes(r *gin.Engine, memoHandler *handlers.MemoHandler, authHandler *handlers.AuthHandler, jwtService service.JWTService, userRepo repository.UserRepository) {
 	// パブリックルートのグループ化
 	api := r.Group("/api")
 	api.Use(middleware.LoggerMiddleware())
@@ -41,12 +40,12 @@ func SetupRoutes(r *gin.Engine, memoHandler *handler.MemoHandler, authHandler *h
 		memos.DELETE("/:id", memoHandler.DeleteMemo) // DELETE /api/memos/:id (staged deletion)
 
 		// アーカイブ関連の操作
-		memos.GET("/archive", memoHandler.ListArchivedMemos) // GET /api/memos/archive (archivedのみ)
+		// memos.GET("/archive", memoHandler.ListArchivedMemos) // GET /api/memos/archive (archivedのみ) - TODO: 実装が必要
 		memos.PATCH("/:id/archive", memoHandler.ArchiveMemo) // PATCH /api/memos/:id/archive
 		memos.PATCH("/:id/restore", memoHandler.RestoreMemo) // PATCH /api/memos/:id/restore
 
 		// その他の操作
-		memos.DELETE("/:id/permanent", memoHandler.PermanentDeleteMemo) // DELETE /api/memos/:id/permanent
+		// memos.DELETE("/:id/permanent", memoHandler.PermanentDeleteMemo) // DELETE /api/memos/:id/permanent - TODO: 実装が必要
 
 		// 検索機能
 		memos.GET("/search", memoHandler.SearchMemos) // GET /api/memos/search

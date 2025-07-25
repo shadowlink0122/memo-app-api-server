@@ -64,7 +64,7 @@ func (r *MemoRepository) Create(ctx context.Context, userID int, req *models.Cre
 		return nil, fmt.Errorf("failed to create memo: %w", err)
 	}
 
-	r.logger.WithField("memo_id", memo.ID).Info("メモを作成しました")
+	r.logger.WithField("memo_id", memo.ID).WithField("created_memo_user_id", memo.UserID).Info("メモを作成しました")
 	return memo, nil
 }
 
@@ -253,9 +253,9 @@ func (r *MemoRepository) PermanentDelete(ctx context.Context, userID int, id int
 
 // Archive archives a memo for a specific user
 func (r *MemoRepository) Archive(ctx context.Context, userID int, id int) error {
-	query := `UPDATE memos SET status = 'archived', updated_at = $1, completed_at = $1 WHERE id = $2 AND user_id = $3`
-
-	result, err := r.db.ExecContext(ctx, query, time.Now(), id, userID)
+	now := time.Now()
+	query := `UPDATE memos SET status = 'archived', completed_at = $1, updated_at = $2 WHERE id = $3 AND user_id = $4`
+	result, err := r.db.ExecContext(ctx, query, now, now, id, userID)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).WithField("user_id", userID).Error("メモのアーカイブに失敗")
 		return fmt.Errorf("failed to archive memo: %w", err)
@@ -276,9 +276,9 @@ func (r *MemoRepository) Archive(ctx context.Context, userID int, id int) error 
 
 // Restore restores an archived memo for a specific user
 func (r *MemoRepository) Restore(ctx context.Context, userID int, id int) error {
-	query := `UPDATE memos SET status = 'active', updated_at = $1, completed_at = NULL WHERE id = $2 AND user_id = $3`
-
-	result, err := r.db.ExecContext(ctx, query, time.Now(), id, userID)
+	now := time.Now()
+	query := `UPDATE memos SET status = 'active', completed_at = NULL, updated_at = $1 WHERE id = $2 AND user_id = $3`
+	result, err := r.db.ExecContext(ctx, query, now, id, userID)
 	if err != nil {
 		r.logger.WithError(err).WithField("memo_id", id).WithField("user_id", userID).Error("メモの復元に失敗")
 		return fmt.Errorf("failed to restore memo: %w", err)

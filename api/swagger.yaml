@@ -1227,6 +1227,10 @@ components:
     MemoResponse:
       type: object
       properties:
+        user_id:
+          type: integer
+          description: ユーザーID
+          example: 29
         id:
           type: integer
           description: メモID
@@ -1277,6 +1281,7 @@ components:
           example: null
       required:
         - id
+        - user_id
         - title
         - content
         - category

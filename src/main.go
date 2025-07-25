@@ -13,15 +13,13 @@ import (
 	"memo-app/src/config"
 	"memo-app/src/database"
 	"memo-app/src/handlers"
-	"memo-app/src/infrastructure/repository"
-	"memo-app/src/interface/handler"
+	infraRepo "memo-app/src/infrastructure/repository"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
 	userRepo "memo-app/src/repository"
 	"memo-app/src/routes"
 	"memo-app/src/service"
 	"memo-app/src/storage"
-	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -32,7 +30,7 @@ func main() {
 	if !isRunningInDocker() {
 		fmt.Println("⚠️  エラー: このアプリケーションはDocker環境でのみ実行できます")
 		fmt.Println("   Docker Composeを使用して起動してください:")
-		fmt.Println("   docker-compose up -d")
+		fmt.Println("   docker compose up -d")
 		os.Exit(1)
 	}
 
@@ -63,10 +61,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// リポジトリ、ユースケース、ハンドラーを初期化（クリーンアーキテクチャ）
-	memoRepo := repository.NewMemoRepository(db, logger.Log)
-	memoUsecase := usecase.NewMemoUsecase(memoRepo)
-	memoHandler := handler.NewMemoHandler(memoUsecase, logger.Log)
+	// リポジトリ、サービス、ハンドラーを初期化
+	memoRepo := infraRepo.NewMemoRepository(db, logger.Log)
+	memoService := service.NewMemoService(memoRepo, logger.Log)
+	memoHandler := handlers.NewMemoHandler(memoService, logger.Log)
 
 	// 認証関連のコンポーネントを初期化
 	userRepository := userRepo.NewUserRepository(db.DB)

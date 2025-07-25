@@ -138,6 +138,7 @@ func TestMemoService_ValidateCreateRequest(t *testing.T) {
 					return req.Title == tt.request.Title && req.Content == tt.request.Content
 				})).Return(&models.Memo{
 					ID:       1,
+					UserID:   1, // user_idを追加
 					Title:    tt.request.Title,
 					Content:  tt.request.Content,
 					Category: tt.request.Category,
@@ -222,6 +223,7 @@ func TestMemoService_NormalizeTags(t *testing.T) {
 				return true
 			})).Return(&models.Memo{
 				ID:      1,
+				UserID:  1, // user_idを追加
 				Title:   "Test",
 				Content: "Test content",
 				Status:  "active",
@@ -295,11 +297,18 @@ func TestMemoService_ValidateAndNormalizeFilter(t *testing.T) {
 						filter.Limit == tt.expectedLimit &&
 						(tt.expectedStatus == "" || filter.Status == tt.expectedStatus)
 				})).Return(&models.MemoListResponse{
-					Memos:      []models.Memo{},
-					Total:      0,
+					Memos: []models.Memo{
+						{
+							ID:     1,
+							UserID: 1, // user_idを追加
+							Title:  "Sample Memo",
+							Status: "active",
+						},
+					},
+					Total:      1,
 					Page:       tt.expectedPage,
 					Limit:      tt.expectedLimit,
-					TotalPages: 0,
+					TotalPages: 1,
 				}, nil).Once()
 			}
 
