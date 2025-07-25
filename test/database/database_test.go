@@ -23,8 +23,8 @@ func getTestDSN(t *testing.T) string {
 		// GitHub ActionsではPostgreSQLサービスを使用
 		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
 	} else if os.Getenv("DOCKER_CONTAINER") == "true" {
-		// Docker環境内の場合
-		dsn = "postgres://memo_user:memo_password@db:5432/memo_db?sslmode=disable"
+		// Docker環境内の場合 - テスト環境のホスト名を使用
+		dsn = "postgres://memo_user:memo_password@db-test:5432/memo_db_test?sslmode=disable"
 	} else {
 		// ローカル開発環境
 		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
