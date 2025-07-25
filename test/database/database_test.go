@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -20,14 +21,14 @@ func getTestDSN(t *testing.T) string {
 
 	// GitHub Actions環境かチェック
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		// GitHub ActionsではPostgreSQLサービスを使用
-		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+		// GitHub ActionsではPostgreSQLサービスを使用（CIワークフローと一致させる）
+		dsn = "postgres://memo_user:memo_password@localhost:5433/memo_db_test?sslmode=disable"
 	} else if os.Getenv("DOCKER_CONTAINER") == "true" {
 		// Docker環境内の場合 - テスト環境のホスト名を使用
-		dsn = "postgres://memo_user:memo_password@db-test:5432/memo_db_test?sslmode=disable"
+		dsn = "postgres://memo_user:memo_password@memo-db:5432/memo_test?sslmode=disable"
 	} else {
 		// ローカル開発環境
-		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_db_test?sslmode=disable"
+		dsn = "postgres://memo_user:memo_password@localhost:5432/memo_test?sslmode=disable"
 	}
 
 	if dsn == "" {
@@ -35,6 +36,47 @@ func getTestDSN(t *testing.T) string {
 	}
 
 	return dsn
+}
+
+// マイグレーション適用確認のヘルパー関数
+func ensureMigrationsApplied(t *testing.T, db *sql.DB) error {
+	// usersテーブルとmemosテーブルの存在確認
+	var exists bool
+
+	// usersテーブルの確認
+	err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'users'
+		);
+	`).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		t.Log("usersテーブルが存在しません。マイグレーションが必要です。")
+		return fmt.Errorf("usersテーブルが存在しません")
+	}
+
+	// memosテーブルの確認
+	err = db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'memos'
+		);
+	`).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		t.Log("memosテーブルが存在しません。マイグレーションが必要です。")
+		return fmt.Errorf("memosテーブルが存在しません")
+	}
+
+	t.Log("マイグレーション確認完了：必要なテーブルが存在します")
+	return nil
 }
 
 // データベース接続のテスト
@@ -97,6 +139,10 @@ func TestIndexesExist(t *testing.T) {
 	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
 	defer db.Close()
+
+	// マイグレーションが実行されているかチェック
+	err = ensureMigrationsApplied(t, db)
+	require.NoError(t, err, "マイグレーション確認に失敗")
 
 	// インデックスの存在確認
 	indexes := []string{

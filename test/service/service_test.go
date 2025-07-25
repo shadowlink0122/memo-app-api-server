@@ -18,50 +18,54 @@ type MockMemoRepository struct {
 }
 
 // Archive implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Archive(ctx context.Context, id int) error {
-	panic("unimplemented")
+func (m *MockMemoRepository) Archive(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
 }
 
 // PermanentDelete implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int) error {
-	panic("unimplemented")
+func (m *MockMemoRepository) PermanentDelete(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
 }
 
 // Restore implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Restore(ctx context.Context, id int) error {
-	panic("unimplemented")
+func (m *MockMemoRepository) Restore(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
 }
 
 // Search implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Search(ctx context.Context, query string, filter models.MemoFilter) ([]models.Memo, int, error) {
-	panic("unimplemented")
+func (m *MockMemoRepository) Search(ctx context.Context, userID int, query string, filter models.MemoFilter) ([]models.Memo, int, error) {
+	args := m.Called(ctx, userID, query, filter)
+	return args.Get(0).([]models.Memo), args.Int(1), args.Error(2)
 }
 
-func (m *MockMemoRepository) Create(ctx context.Context, req *models.CreateMemoRequest) (*models.Memo, error) {
-	args := m.Called(ctx, req)
+func (m *MockMemoRepository) Create(ctx context.Context, userID int, req *models.CreateMemoRequest) (*models.Memo, error) {
+	args := m.Called(ctx, userID, req)
 	return args.Get(0).(*models.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) GetByID(ctx context.Context, id int) (*models.Memo, error) {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) GetByID(ctx context.Context, id int, userID int) (*models.Memo, error) {
+	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) List(ctx context.Context, filter *models.MemoFilter) (*models.MemoListResponse, error) {
-	args := m.Called(ctx, filter)
+func (m *MockMemoRepository) List(ctx context.Context, userID int, filter *models.MemoFilter) (*models.MemoListResponse, error) {
+	args := m.Called(ctx, userID, filter)
 	return args.Get(0).(*models.MemoListResponse), args.Error(1)
 }
 
-func (m *MockMemoRepository) Update(ctx context.Context, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
-	args := m.Called(ctx, id, req)
+func (m *MockMemoRepository) Update(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
+	args := m.Called(ctx, userID, id, req)
 	return args.Get(0).(*models.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) Delete(ctx context.Context, id int) error {
-	args := m.Called(ctx, id)
+func (m *MockMemoRepository) Delete(ctx context.Context, userID int, id int) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
@@ -130,7 +134,7 @@ func TestMemoService_ValidateCreateRequest(t *testing.T) {
 			// CreateMemo は内部でバリデーションを実行するので、実際に呼び出してテスト
 			if !tt.wantErr {
 				// 成功ケースのモック設定
-				mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(req *models.CreateMemoRequest) bool {
+				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("int"), mock.MatchedBy(func(req *models.CreateMemoRequest) bool {
 					return req.Title == tt.request.Title && req.Content == tt.request.Content
 				})).Return(&models.Memo{
 					ID:       1,
@@ -142,7 +146,8 @@ func TestMemoService_ValidateCreateRequest(t *testing.T) {
 				}, nil).Once()
 			}
 
-			_, err := service.CreateMemo(context.Background(), tt.request)
+			// テスト用のuserIDを使用
+			_, err := service.CreateMemo(context.Background(), 1, tt.request)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -204,7 +209,7 @@ func TestMemoService_NormalizeTags(t *testing.T) {
 				Tags:    tt.input,
 			}
 
-			mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(req *models.CreateMemoRequest) bool {
+			mockRepo.On("Create", mock.Anything, mock.AnythingOfType("int"), mock.MatchedBy(func(req *models.CreateMemoRequest) bool {
 				// 正規化されたタグをチェック
 				if len(req.Tags) != len(tt.expected) {
 					return false
@@ -222,7 +227,7 @@ func TestMemoService_NormalizeTags(t *testing.T) {
 				Status:  "active",
 			}, nil).Once()
 
-			_, err := service.CreateMemo(context.Background(), request)
+			_, err := service.CreateMemo(context.Background(), 1, request)
 			assert.NoError(t, err)
 		})
 	}
@@ -285,7 +290,7 @@ func TestMemoService_ValidateAndNormalizeFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !tt.wantErr {
-				mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter *models.MemoFilter) bool {
+				mockRepo.On("List", mock.Anything, mock.AnythingOfType("int"), mock.MatchedBy(func(filter *models.MemoFilter) bool {
 					return filter.Page == tt.expectedPage &&
 						filter.Limit == tt.expectedLimit &&
 						(tt.expectedStatus == "" || filter.Status == tt.expectedStatus)
@@ -298,7 +303,7 @@ func TestMemoService_ValidateAndNormalizeFilter(t *testing.T) {
 				}, nil).Once()
 			}
 
-			_, err := service.ListMemos(context.Background(), tt.input)
+			_, err := service.ListMemos(context.Background(), 1, tt.input)
 
 			if tt.wantErr {
 				assert.Error(t, err)
