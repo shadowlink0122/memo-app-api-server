@@ -57,7 +57,7 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 	// 入力値のサニタイゼーション
 	sanitizedReq := CreateMemoRequestDTO{
 		Title:    h.validator.SanitizeInput(req.Title),
-		Content:  h.validator.SanitizeInput(req.Content),
+		Content:  h.validator.SanitizeContent(req.Content), // コンテンツ専用サニタイゼーション
 		Category: h.validator.SanitizeInput(req.Category),
 		Tags:     h.validator.SanitizeTags(req.Tags),
 		Priority: req.Priority, // 列挙値なのでサニタイズ不要
@@ -306,7 +306,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		sanitizedReq.Title = &sanitized
 	}
 	if req.Content != nil {
-		sanitized := h.validator.SanitizeInput(*req.Content)
+		sanitized := h.validator.SanitizeContent(*req.Content) // コンテンツ専用サニタイゼーション
 		sanitizedReq.Content = &sanitized
 	}
 	if req.Category != nil {
