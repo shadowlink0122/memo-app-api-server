@@ -105,7 +105,7 @@ func (u *memoUsecase) GetMemo(ctx context.Context, userID int, id int) (*domain.
 func (u *memoUsecase) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	// デバッグログ
 	logger.Log.WithField("userID", userID).Error("=== USECASE ListMemos called with userID")
-	
+
 	if err := u.validateAndNormalizeFilter(&filter); err != nil {
 		return nil, 0, err
 	}

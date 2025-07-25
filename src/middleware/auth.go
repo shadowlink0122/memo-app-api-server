@@ -101,11 +101,11 @@ func AuthMiddleware(jwtService service.JWTService, userRepo repository.UserRepos
 			"user_id":   userID,
 			"username":  user.Username,
 		}).Info("認証成功")
-		
+
 		// 確実に表示されるエラーレベルログ
 		logger.WithField("debug_user_id", userID).Error("=== MIDDLEWARE: Context user_id set ===")
 		fmt.Printf("=== MIDDLEWARE: userID %d set in context ===\n", userID)
-		
+
 		c.Next()
 	}
 }

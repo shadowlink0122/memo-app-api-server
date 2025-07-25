@@ -113,7 +113,7 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*doma
 func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	r.logger.WithField("user_id", userID).Error("=== INFRASTRUCTURE MemoRepository.List called ===")
 	fmt.Printf("=== INFRASTRUCTURE MEMO REPO LIST CALLED WITH USER_ID: %d ===\n", userID)
-	
+
 	// ベースクエリ（ユーザー固有）
 	baseQuery := `FROM memos WHERE user_id = $1`
 	countQuery := `SELECT COUNT(*) ` + baseQuery
@@ -183,7 +183,7 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
 
 	r.logger.WithField("select_query", selectQuery).WithField("args", args).Error("=== INFRASTRUCTURE Executing select query ===")
-	
+
 	// メモを取得
 	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
 	if err != nil {
