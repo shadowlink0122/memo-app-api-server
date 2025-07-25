@@ -91,108 +91,14 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*mode
 	return memo, nil
 }
 
-// List retrieves memos with filtering for a specific user
-func (r *MemoRepository) List(ctx context.Context, userID int, filter *models.MemoFilter) (*models.MemoListResponse, error) {
-	// ベースクエリ（ユーザー固有）
-	baseQuery := `FROM memos WHERE user_id = $1`
-	countQuery := `SELECT COUNT(*) ` + baseQuery
-	selectQuery := `
-		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
-		` + baseQuery
-
-	var args []interface{}
-	args = append(args, userID) // ユーザーIDを最初の引数として追加
-	argIndex := 2
-
-	// フィルター条件を追加
-	if filter.Category != "" {
-		baseQuery += fmt.Sprintf(" AND category = $%d", argIndex)
-		args = append(args, filter.Category)
-		argIndex++
-	}
-
-	if filter.Status != "" {
-		baseQuery += fmt.Sprintf(" AND status = $%d", argIndex)
-		args = append(args, filter.Status)
-		argIndex++
-	}
-
-	if filter.Priority != "" {
-		baseQuery += fmt.Sprintf(" AND priority = $%d", argIndex)
-		args = append(args, filter.Priority)
-		argIndex++
-	}
-
-	if filter.Search != "" {
-		baseQuery += fmt.Sprintf(" AND (title ILIKE $%d OR content ILIKE $%d)", argIndex, argIndex)
-		args = append(args, "%"+filter.Search+"%")
-		argIndex++
-	}
-
-	if filter.Tags != "" {
-		baseQuery += fmt.Sprintf(" AND tags::text ILIKE $%d", argIndex)
-		args = append(args, "%"+filter.Tags+"%")
-		argIndex++
-	}
-
-	// 更新されたクエリ
-	countQuery = `SELECT COUNT(*) ` + baseQuery
-	selectQuery = `
-		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
-		` + baseQuery
-
-	// 総数を取得
-	var total int
-	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
-	if err != nil {
-		r.logger.WithError(err).Error("メモ総数の取得に失敗")
-		return nil, fmt.Errorf("failed to count memos: %w", err)
-	}
-
-	// ページネーションを追加
-	selectQuery += " ORDER BY updated_at DESC"
-	selectQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
-	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
-
-	// メモを取得
-	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
-	if err != nil {
-		r.logger.WithError(err).Error("メモリストの取得に失敗")
-		return nil, fmt.Errorf("failed to get memos: %w", err)
-	}
-	defer rows.Close()
-
-	var memos []models.Memo
-	for rows.Next() {
-		var memo models.Memo
-		err := rows.Scan(
-			&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category, &memo.Tags,
-			&memo.Priority, &memo.Status, &memo.CreatedAt, &memo.UpdatedAt, &memo.CompletedAt,
-		)
-		if err != nil {
-			r.logger.WithError(err).Error("メモのスキャンに失敗")
-			return nil, fmt.Errorf("failed to scan memo: %w", err)
-		}
-		memos = append(memos, memo)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
-	}
-
-	totalPages := (total + filter.Limit - 1) / filter.Limit
-
-	return &models.MemoListResponse{
-		Memos:      memos,
-		Total:      total,
-		Page:       filter.Page,
-		Limit:      filter.Limit,
-		TotalPages: totalPages,
-	}, nil
+// List retrieves all memos with optional filtering
+func (r *MemoRepository) List(ctx context.Context, userID int, filter models.MemoFilter) ([]models.Memo, int, error) {
+	// この古いリポジトリは使用されていないはずです
+	return nil, 0, fmt.Errorf("OLD REPOSITORY SHOULD NOT BE USED")
 }
 
 // Update updates a memo for a specific user
-func (r *MemoRepository) Update(ctx context.Context, id int, userID int, req *models.UpdateMemoRequest) (*models.Memo, error) {
+func (r *MemoRepository) Update(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
 	// 既存のメモを取得（ユーザー固有）
 	existing, err := r.GetByID(ctx, id, userID)
 	if err != nil {
@@ -288,7 +194,7 @@ func (r *MemoRepository) Update(ctx context.Context, id int, userID int, req *mo
 }
 
 // Delete handles memo deletion with staged approach for a specific user
-func (r *MemoRepository) Delete(ctx context.Context, id int, userID int) error {
+func (r *MemoRepository) Delete(ctx context.Context, userID int, id int) error {
 	r.logger.WithField("memo_id", id).WithField("user_id", userID).Info("=== レガシーリポジトリのDeleteメソッドが呼ばれました ===")
 
 	// まず、メモの現在の状態を確認（ユーザー固有）
@@ -323,7 +229,7 @@ func (r *MemoRepository) Delete(ctx context.Context, id int, userID int) error {
 }
 
 // PermanentDelete permanently deletes a memo from database for a specific user
-func (r *MemoRepository) PermanentDelete(ctx context.Context, id int, userID int) error {
+func (r *MemoRepository) PermanentDelete(ctx context.Context, userID int, id int) error {
 	query := `DELETE FROM memos WHERE id = $1 AND user_id = $2`
 
 	result, err := r.db.ExecContext(ctx, query, id, userID)
@@ -346,7 +252,7 @@ func (r *MemoRepository) PermanentDelete(ctx context.Context, id int, userID int
 }
 
 // Archive archives a memo for a specific user
-func (r *MemoRepository) Archive(ctx context.Context, id int, userID int) error {
+func (r *MemoRepository) Archive(ctx context.Context, userID int, id int) error {
 	query := `UPDATE memos SET status = 'archived', updated_at = $1, completed_at = $1 WHERE id = $2 AND user_id = $3`
 
 	result, err := r.db.ExecContext(ctx, query, time.Now(), id, userID)
@@ -369,7 +275,7 @@ func (r *MemoRepository) Archive(ctx context.Context, id int, userID int) error 
 }
 
 // Restore restores an archived memo for a specific user
-func (r *MemoRepository) Restore(ctx context.Context, id int, userID int) error {
+func (r *MemoRepository) Restore(ctx context.Context, userID int, id int) error {
 	query := `UPDATE memos SET status = 'active', updated_at = $1, completed_at = NULL WHERE id = $2 AND user_id = $3`
 
 	result, err := r.db.ExecContext(ctx, query, time.Now(), id, userID)

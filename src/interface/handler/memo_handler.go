@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -158,6 +159,8 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		return
 	}
 
+	h.logger.WithField("user_id", userID).Error("=== HANDLER ListMemos called ===")
+
 	var filterDTO MemoFilterDTO
 	if err := c.ShouldBindQuery(&filterDTO); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
@@ -197,6 +200,7 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 
 	filter := h.toDomainFilter(sanitizedFilter)
 
+	h.logger.WithField("user_id", userID).WithField("filter", filter).Error("=== HANDLER calling usecase.ListMemos ===")
 	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), userID, filter)
 	if err != nil {
 		h.logger.WithError(err).Error("メモリストの取得に失敗")
@@ -220,6 +224,13 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		Limit:      filter.Limit,
 		TotalPages: (total + filter.Limit - 1) / filter.Limit,
 	}
+
+	// ページネーション情報をヘッダーに追加
+	c.Header("X-Total-Count", fmt.Sprintf("%d", total))
+	c.Header("X-Page", fmt.Sprintf("%d", filter.Page))
+	c.Header("X-Limit", fmt.Sprintf("%d", filter.Limit))
+	c.Header("X-Total-Pages", fmt.Sprintf("%d", (total+filter.Limit-1)/filter.Limit))
+	c.Header("Content-Type", "application/json; charset=utf-8")
 
 	c.JSON(http.StatusOK, response)
 }

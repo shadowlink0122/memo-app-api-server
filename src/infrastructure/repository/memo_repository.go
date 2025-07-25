@@ -111,6 +111,9 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*doma
 
 // List retrieves memos with filtering for a specific user
 func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	r.logger.WithField("user_id", userID).Error("=== INFRASTRUCTURE MemoRepository.List called ===")
+	fmt.Printf("=== INFRASTRUCTURE MEMO REPO LIST CALLED WITH USER_ID: %d ===\n", userID)
+	
 	// ベースクエリ（ユーザー固有）
 	baseQuery := `FROM memos WHERE user_id = $1`
 	countQuery := `SELECT COUNT(*) ` + baseQuery
@@ -162,10 +165,11 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 	// 更新されたクエリ
 	countQuery = `SELECT COUNT(*) ` + baseQuery
 	selectQuery = `
-		SELECT id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
+		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
 		` + baseQuery
 
 	// 総数を取得
+	r.logger.WithField("count_query", countQuery).WithField("args", args).Error("=== INFRASTRUCTURE Executing count query ===")
 	var total int
 	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
@@ -178,6 +182,8 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 	selectQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
 
+	r.logger.WithField("select_query", selectQuery).WithField("args", args).Error("=== INFRASTRUCTURE Executing select query ===")
+	
 	// メモを取得
 	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
 	if err != nil {
@@ -195,8 +201,8 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		var completedAt sql.NullTime
 
 		err := rows.Scan(
-			&memo.ID, &memo.Title, &memo.Content, &memo.Category, &tagsJSON,
-			&priorityStr, &statusStr, &memo.CreatedAt, &memo.UpdatedAt, &completedAt, &memo.UserID,
+			&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category, &tagsJSON,
+			&priorityStr, &statusStr, &memo.CreatedAt, &memo.UpdatedAt, &completedAt,
 		)
 		if err != nil {
 			r.logger.WithError(err).Error("メモのスキャンに失敗")

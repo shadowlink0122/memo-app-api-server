@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"memo-app/src/domain"
+	"memo-app/src/logger"
 )
 
 var (
@@ -102,10 +103,14 @@ func (u *memoUsecase) GetMemo(ctx context.Context, userID int, id int) (*domain.
 
 // ListMemos retrieves memos with filtering for a specific user
 func (u *memoUsecase) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	// デバッグログ
+	logger.Log.WithField("userID", userID).Error("=== USECASE ListMemos called with userID")
+	
 	if err := u.validateAndNormalizeFilter(&filter); err != nil {
 		return nil, 0, err
 	}
 
+	logger.Log.Error("=== USECASE calling repo.List ===")
 	return u.memoRepo.List(ctx, userID, filter)
 }
 

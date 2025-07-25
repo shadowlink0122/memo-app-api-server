@@ -26,7 +26,7 @@ func NewMemoService(repo repository.MemoRepositoryInterface, logger *logrus.Logg
 }
 
 // CreateMemo creates a new memo
-func (s *MemoService) CreateMemo(ctx context.Context, req *models.CreateMemoRequest) (*models.Memo, error) {
+func (s *MemoService) CreateMemo(ctx context.Context, userID int, req *models.CreateMemoRequest) (*models.Memo, error) {
 	// バリデーション
 	if err := s.validateCreateRequest(req); err != nil {
 		return nil, err
@@ -40,30 +40,30 @@ func (s *MemoService) CreateMemo(ctx context.Context, req *models.CreateMemoRequ
 	// タグの正規化
 	req.Tags = s.normalizeTags(req.Tags)
 
-	return s.repo.Create(ctx, req)
+	return s.repo.Create(ctx, userID, req)
 }
 
 // GetMemo retrieves a memo by ID
-func (s *MemoService) GetMemo(ctx context.Context, id int) (*models.Memo, error) {
+func (s *MemoService) GetMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid memo ID: %d", id)
 	}
 
-	return s.repo.GetByID(ctx, id)
+	return s.repo.GetByID(ctx, id, userID)
 }
 
 // ListMemos retrieves memos with filtering
-func (s *MemoService) ListMemos(ctx context.Context, filter *models.MemoFilter) (*models.MemoListResponse, error) {
+func (s *MemoService) ListMemos(ctx context.Context, userID int, filter *models.MemoFilter) (*models.MemoListResponse, error) {
 	// フィルターのバリデーションとデフォルト値設定
 	if err := s.validateAndNormalizeFilter(filter); err != nil {
 		return nil, err
 	}
 
-	return s.repo.List(ctx, filter)
+	return s.repo.List(ctx, userID, filter)
 }
 
 // UpdateMemo updates a memo
-func (s *MemoService) UpdateMemo(ctx context.Context, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
+func (s *MemoService) UpdateMemo(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid memo ID: %d", id)
 	}
@@ -79,40 +79,40 @@ func (s *MemoService) UpdateMemo(ctx context.Context, id int, req *models.Update
 		req.Tags = normalizedTags
 	}
 
-	return s.repo.Update(ctx, id, req)
+	return s.repo.Update(ctx, userID, id, req)
 }
 
 // DeleteMemo deletes a memo
-func (s *MemoService) DeleteMemo(ctx context.Context, id int) error {
+func (s *MemoService) DeleteMemo(ctx context.Context, userID int, id int) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid memo ID: %d", id)
 	}
 
-	return s.repo.Delete(ctx, id)
+	return s.repo.Delete(ctx, userID, id)
 }
 
 // ArchiveMemo archives a memo (sets status to archived)
-func (s *MemoService) ArchiveMemo(ctx context.Context, id int) (*models.Memo, error) {
+func (s *MemoService) ArchiveMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
 	status := "archived"
 	req := &models.UpdateMemoRequest{
 		Status: &status,
 	}
 
-	return s.UpdateMemo(ctx, id, req)
+	return s.UpdateMemo(ctx, userID, id, req)
 }
 
 // RestoreMemo restores an archived memo (sets status to active)
-func (s *MemoService) RestoreMemo(ctx context.Context, id int) (*models.Memo, error) {
+func (s *MemoService) RestoreMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
 	status := "active"
 	req := &models.UpdateMemoRequest{
 		Status: &status,
 	}
 
-	return s.UpdateMemo(ctx, id, req)
+	return s.UpdateMemo(ctx, userID, id, req)
 }
 
 // SearchMemos searches memos by content
-func (s *MemoService) SearchMemos(ctx context.Context, query string, page, limit int) (*models.MemoListResponse, error) {
+func (s *MemoService) SearchMemos(ctx context.Context, userID int, query string, page, limit int) (*models.MemoListResponse, error) {
 	filter := &models.MemoFilter{
 		Search: strings.TrimSpace(query),
 		Page:   page,
@@ -123,7 +123,7 @@ func (s *MemoService) SearchMemos(ctx context.Context, query string, page, limit
 		return nil, err
 	}
 
-	return s.repo.List(ctx, filter)
+	return s.repo.List(ctx, userID, filter)
 }
 
 // validateCreateRequest validates the create memo request
