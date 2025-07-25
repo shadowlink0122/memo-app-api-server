@@ -158,11 +158,8 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		Limit:    filterDTO.Limit,
 	}
 
-	// 通常のListMemosではアーカイブされたメモを除外
-	// ステータスが明示的に指定されていない場合はactiveのみ取得
-	if sanitizedFilter.Status == "" {
-		sanitizedFilter.Status = "active"
-	}
+	// ステータスフィルターが指定されていない場合は全てのメモを取得
+	// （activeとarchivedの両方を含む）
 
 	filter := h.toDomainFilter(sanitizedFilter)
 
@@ -516,11 +513,8 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 		Limit:    filterDTO.Limit,
 	}
 
-	// 検索でもアーカイブされたメモを除外
-	// ステータスが明示的に指定されていない場合はactiveのみ検索
-	if sanitizedFilter.Status == "" {
-		sanitizedFilter.Status = "active"
-	}
+	// ステータスフィルターが指定されていない場合は全てのメモを検索
+	// （activeとarchivedの両方を含む）
 
 	query := sanitizedFilter.Search
 	filter := h.toDomainFilter(sanitizedFilter)
