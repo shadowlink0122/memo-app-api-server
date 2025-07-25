@@ -99,9 +99,9 @@ func (suite *E2ETestSuite) TestSetup(t *testing.T) {
 		if inDocker {
 			if ciEnvironment {
 				// CI環境では通常のメインDBを使用
-				dsn = "postgres://memo_user:memo_password@db:5432/memo_db?sslmode=disable"
+				dsn = "postgres://memo_user:memo_password@db-test:5432/memo_db?sslmode=disable"
 			} else {
-				dsn = "postgres://memo_user:memo_password@db:5432/memo_db_test?sslmode=disable"
+				dsn = "postgres://memo_user:memo_password@db-test:5432/memo_db_test?sslmode=disable"
 			}
 		} else {
 			if ciEnvironment {

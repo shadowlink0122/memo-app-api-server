@@ -40,8 +40,8 @@ func NewCustomValidator() *CustomValidator {
 	v := validator.New()
 	cv := &CustomValidator{
 		validator:           v,
-		categoryPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.<>?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // 英数字、記号、ひらがな、カタカナ、漢字
-		tagPattern:          regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.<>?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // タグも記号を許可
+		categoryPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // HTMLタグ記号<>を除外
+		tagPattern:          regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // HTMLタグ記号<>を除外
 		sqlInjectionPattern: regexp.MustCompile(`(?i)(\bunion\s+select\b|\bselect\s+.*\bfrom\b|\binsert\s+into\b|\bupdate\s+.*\bset\b|\bdelete\s+from\b|\bdrop\s+table\b|\bcreate\s+table\b|\balter\s+table\b|\bexec\s*\(|<script|</script>|onload\s*=|onerror\s*=|--|/\*|\*/|\|\||(\bor\b|\band\b)\s*(1\s*=\s*1|true|\d+\s*=\s*\d+))`),
 	}
 
@@ -82,22 +82,17 @@ func (cv *CustomValidator) Validate(s interface{}) error {
 
 // SanitizeInput sanitizes input data to prevent XSS and other attacks while preserving content structure
 func (cv *CustomValidator) SanitizeInput(input string) string {
-	// 改行を保持しつつ、危険な文字列のみをエスケープ
-	sanitized := input
+	// 前後の空白を削除
+	input = strings.TrimSpace(input)
 
-	// SQLインジェクション攻撃のパターンをチェック
-	if cv.sqlInjectionPattern.MatchString(sanitized) {
-		// 危険なパターンが検出された場合のみHTMLエスケープ
-		sanitized = html.EscapeString(sanitized)
-	}
+	// 連続する空白を単一のスペースに置換（タブや改行も含む）
+	spacePattern := regexp.MustCompile(`[ \t]+`)
+	input = spacePattern.ReplaceAllString(input, " ")
 
-	// 前後の空白を除去（改行は保持）
-	sanitized = strings.TrimSpace(sanitized)
+	// HTMLエスケープ
+	input = html.EscapeString(input)
 
-	// 連続する空白行を最大2行に制限（改行は保持）
-	sanitized = regexp.MustCompile(`\n{3,}`).ReplaceAllString(sanitized, "\n\n")
-
-	return sanitized
+	return input
 }
 
 // SanitizeContent specifically sanitizes memo content while preserving formatting
@@ -130,15 +125,20 @@ func (cv *CustomValidator) SanitizeTags(tags []string) []string {
 	result := make([]string, 0, len(tags))
 
 	for _, tag := range tags {
-		// サニタイズ
-		sanitized := cv.SanitizeInput(tag)
+		// 前後の空白を削除
+		sanitized := strings.TrimSpace(tag)
 
 		// 長さチェック
 		if utf8.RuneCountInString(sanitized) > 30 {
 			continue // 長すぎるタグは除外
 		}
 
-		// 重複チェック
+		// HTMLタグ文字を含む場合は除外
+		if strings.Contains(sanitized, "<") || strings.Contains(sanitized, ">") {
+			continue
+		}
+
+		// パターンチェックと重複チェック
 		if sanitized != "" && !seen[sanitized] && cv.tagPattern.MatchString(sanitized) {
 			seen[sanitized] = true
 			result = append(result, sanitized)
