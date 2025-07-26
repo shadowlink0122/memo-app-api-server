@@ -39,13 +39,13 @@ const (
 
 // MemoFilter represents filter criteria for memo queries
 type MemoFilter struct {
-	Category    string
-	Status      Status
-	Priority    Priority
-	Search      string
-	Tags        []string
-	Page        int
-	Limit       int
+	Category     string
+	Status       Status
+	Priority     Priority
+	Search       string
+	Tags         []string
+	Page         int
+	Limit        int
 	DeadlineFrom *time.Time
 	DeadlineTo   *time.Time
 }

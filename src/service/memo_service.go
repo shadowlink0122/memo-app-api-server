@@ -41,41 +41,41 @@ func (s *MemoService) CreateMemo(ctx context.Context, userID int, req usecase.Cr
 	// バリデーション
 	// domain.Memo型に変換する前に、CreateMemoRequestの内容をvalidateCreateRequestで検証
 	// 必要ならmodels.CreateMemoRequest型に変換
-modelReq := &models.CreateMemoRequest{
-	Title:    req.Title,
-	Content:  req.Content,
-	Category: req.Category,
-	Tags:     req.Tags,
-	Priority: req.Priority,
-	Deadline: req.Deadline, // ここでDeadlineを渡す
-}
-if err := s.validateCreateRequest(modelReq); err != nil {
-	return nil, err
-}
-// タグの正規化（空白除去・重複排除）
-normalizedTags := make([]string, 0, len(req.Tags))
-tagSet := make(map[string]struct{})
-for _, tag := range req.Tags {
-	trimmed := strings.TrimSpace(tag)
-	if trimmed == "" {
-		continue
+	modelReq := &models.CreateMemoRequest{
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     req.Tags,
+		Priority: req.Priority,
+		Deadline: req.Deadline, // ここでDeadlineを渡す
 	}
-	if _, exists := tagSet[trimmed]; !exists {
-		tagSet[trimmed] = struct{}{}
-		normalizedTags = append(normalizedTags, trimmed)
+	if err := s.validateCreateRequest(modelReq); err != nil {
+		return nil, err
 	}
-}
-memo := &domain.Memo{
-	UserID:   userID,
-	Title:    req.Title,
-	Content:  req.Content,
-	Category: req.Category,
-	Tags:     normalizedTags,
-	Priority: domain.Priority(req.Priority),
-	Status:   domain.StatusActive,
-	Deadline: req.Deadline, // ここでDeadlineを渡す
-}
-return s.repo.Create(ctx, memo)
+	// タグの正規化（空白除去・重複排除）
+	normalizedTags := make([]string, 0, len(req.Tags))
+	tagSet := make(map[string]struct{})
+	for _, tag := range req.Tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := tagSet[trimmed]; !exists {
+			tagSet[trimmed] = struct{}{}
+			normalizedTags = append(normalizedTags, trimmed)
+		}
+	}
+	memo := &domain.Memo{
+		UserID:   userID,
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     normalizedTags,
+		Priority: domain.Priority(req.Priority),
+		Status:   domain.StatusActive,
+		Deadline: req.Deadline, // ここでDeadlineを渡す
+	}
+	return s.repo.Create(ctx, memo)
 }
 
 // GetMemo retrieves a memo by ID

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"memo-app/src/domain"
-	"memo-app/src/usecase"
 	"memo-app/src/logger"
+	"memo-app/src/usecase"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -272,8 +272,8 @@ func TestMemoUsecase_ListMemos(t *testing.T) {
 		filter := domain.MemoFilter{
 			DeadlineFrom: &deadline,
 			DeadlineTo:   &deadline,
-			Page: 1,
-			Limit: 10,
+			Page:         1,
+			Limit:        10,
 		}
 		expected := []domain.Memo{{ID: 3, Title: "Deadline Memo", Deadline: &deadline}}
 		mockRepo.On("List", mock.Anything, 1, filter).Return(expected, 1, nil)

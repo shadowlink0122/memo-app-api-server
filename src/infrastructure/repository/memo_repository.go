@@ -57,18 +57,18 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 
 // GetByID retrieves a memo by ID for a specific user
 func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
-query := `
+	query := `
 	SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at, deadline
 	FROM memos WHERE id = $1 AND user_id = $2`
-var memo domain.Memo
-var tagsStr sql.NullString
-var completedAt sql.NullTime
-var deadline sql.NullTime
-err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
-	&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category,
-	&tagsStr, &memo.Priority, &memo.Status,
-	&memo.CreatedAt, &memo.UpdatedAt, &completedAt, &deadline,
-)
+	var memo domain.Memo
+	var tagsStr sql.NullString
+	var completedAt sql.NullTime
+	var deadline sql.NullTime
+	err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
+		&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category,
+		&tagsStr, &memo.Priority, &memo.Status,
+		&memo.CreatedAt, &memo.UpdatedAt, &completedAt, &deadline,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("memo not found")
@@ -82,12 +82,12 @@ err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
 		_ = json.Unmarshal([]byte(tagsStr.String), &tags)
 		memo.Tags = tags
 	}
-if completedAt.Valid {
-	memo.CompletedAt = &completedAt.Time
-}
-if deadline.Valid {
-	memo.Deadline = &deadline.Time
-}
+	if completedAt.Valid {
+		memo.CompletedAt = &completedAt.Time
+	}
+	if deadline.Valid {
+		memo.Deadline = &deadline.Time
+	}
 	return &memo, nil
 }
 

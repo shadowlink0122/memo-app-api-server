@@ -22,22 +22,22 @@ type Memo struct {
 
 // CreateMemoRequest represents the request payload for creating a memo
 type CreateMemoRequest struct {
-	Title    string   `json:"title" binding:"required,max=200"`
-	Content  string   `json:"content" binding:"required"`
-	Category string   `json:"category" binding:"max=50"`
-	Tags     []string `json:"tags"`
-	Priority string   `json:"priority" binding:"oneof=low medium high"`
+	Title    string     `json:"title" binding:"required,max=200"`
+	Content  string     `json:"content" binding:"required"`
+	Category string     `json:"category" binding:"max=50"`
+	Tags     []string   `json:"tags"`
+	Priority string     `json:"priority" binding:"oneof=low medium high"`
 	Deadline *time.Time `json:"deadline"`
 }
 
 // UpdateMemoRequest represents the request payload for updating a memo
 type UpdateMemoRequest struct {
-	Title    *string  `json:"title,omitempty" binding:"omitempty,max=200"`
-	Content  *string  `json:"content,omitempty"`
-	Category *string  `json:"category,omitempty" binding:"omitempty,max=50"`
-	Tags     []string `json:"tags,omitempty"`
-	Priority *string  `json:"priority,omitempty" binding:"omitempty,oneof=low medium high"`
-	Status   *string  `json:"status,omitempty" binding:"omitempty,oneof=active archived"`
+	Title    *string    `json:"title,omitempty" binding:"omitempty,max=200"`
+	Content  *string    `json:"content,omitempty"`
+	Category *string    `json:"category,omitempty" binding:"omitempty,max=50"`
+	Tags     []string   `json:"tags,omitempty"`
+	Priority *string    `json:"priority,omitempty" binding:"omitempty,oneof=low medium high"`
+	Status   *string    `json:"status,omitempty" binding:"omitempty,oneof=active archived"`
 	Deadline *time.Time `json:"deadline,omitempty"`
 }
 
@@ -52,13 +52,13 @@ type MemoListResponse struct {
 
 // MemoFilter represents filter options for memo queries
 type MemoFilter struct {
-	Category string `form:"category"`
-	Status   string `form:"status" binding:"omitempty,oneof=active archived"`
-	Priority string `form:"priority" binding:"omitempty,oneof=low medium high"`
-	Search   string `form:"search"`
-	Tags     []string `form:"tags"`
-	Page     int    `form:"page,default=1" binding:"min=1"`
-	Limit    int    `form:"limit,default=10" binding:"min=1,max=100"`
+	Category     string     `form:"category"`
+	Status       string     `form:"status" binding:"omitempty,oneof=active archived"`
+	Priority     string     `form:"priority" binding:"omitempty,oneof=low medium high"`
+	Search       string     `form:"search"`
+	Tags         []string   `form:"tags"`
+	Page         int        `form:"page,default=1" binding:"min=1"`
+	Limit        int        `form:"limit,default=10" binding:"min=1,max=100"`
 	DeadlineFrom *time.Time `form:"deadline_from,omitempty"`
 	DeadlineTo   *time.Time `form:"deadline_to,omitempty"`
 }
