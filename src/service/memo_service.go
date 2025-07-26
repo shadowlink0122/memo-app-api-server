@@ -38,12 +38,38 @@ func (s *MemoService) DeleteMemo(ctx context.Context, userID int, id int) error 
 
 // CreateMemo creates a new memo
 func (s *MemoService) CreateMemo(ctx context.Context, userID int, req usecase.CreateMemoRequest) (*domain.Memo, error) {
+	// バリデーション
+	// domain.Memo型に変換する前に、CreateMemoRequestの内容をvalidateCreateRequestで検証
+	// 必要ならmodels.CreateMemoRequest型に変換
+	modelReq := &models.CreateMemoRequest{
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     req.Tags,
+		Priority: req.Priority,
+	}
+	if err := s.validateCreateRequest(modelReq); err != nil {
+		return nil, err
+	}
+	// タグの正規化（空白除去・重複排除）
+	normalizedTags := make([]string, 0, len(req.Tags))
+	tagSet := make(map[string]struct{})
+	for _, tag := range req.Tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := tagSet[trimmed]; !exists {
+			tagSet[trimmed] = struct{}{}
+			normalizedTags = append(normalizedTags, trimmed)
+		}
+	}
 	memo := &domain.Memo{
 		UserID:   userID,
 		Title:    req.Title,
 		Content:  req.Content,
 		Category: req.Category,
-		Tags:     req.Tags,
+		Tags:     normalizedTags,
 		Priority: domain.Priority(req.Priority),
 		Status:   domain.StatusActive,
 	}
@@ -64,6 +90,20 @@ func (s *MemoService) GetMemo(ctx context.Context, userID int, id int) (*domain.
 
 // ListMemos retrieves memos with filtering
 func (s *MemoService) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	// Statusバリデーション
+	if filter.Status != "" && filter.Status != domain.StatusActive && filter.Status != domain.StatusArchived {
+		return nil, 0, fmt.Errorf("status must be one of: active, archived")
+	}
+	// Page/Limitのデフォルト値補正
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 10
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
+	}
 	memos, total, err := s.repo.List(ctx, userID, filter)
 	if err != nil {
 		return nil, 0, err
