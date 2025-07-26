@@ -3,13 +3,17 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"memo-app/src/logger"
 	"memo-app/src/models"
 	"memo-app/src/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // AuthHandler 認証ハンドラー
@@ -223,6 +227,44 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	})
 }
 
+// Logout ユーザーをログアウト
+func (h *AuthHandler) Logout(c *gin.Context) {
+	// Authorization ヘッダーからトークンを取得
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization header is required"})
+		return
+	}
+
+	// Bearer トークンの形式をチェック
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization header format"})
+		return
+	}
+
+	token := parts[1]
+
+	// トークンをブラックリストに追加（トークンを無効化）
+	err := h.authService.InvalidateToken(token)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"error": err.Error(),
+			"token": token[:10] + "...", // セキュリティのため一部のみログ出力
+		}).Error("トークンの無効化に失敗")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
+		return
+	}
+
+	logger.WithFields(logrus.Fields{
+		"token": token[:10] + "...", // セキュリティのため一部のみログ出力
+	}).Info("トークンを正常に無効化しました")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Successfully logged out",
+	})
+}
+
 // getClientIP クライアントのIPアドレスを取得
 func getClientIP(c *gin.Context) string {
 	// X-Forwarded-For ヘッダーをチェック
@@ -246,6 +288,9 @@ func getClientIP(c *gin.Context) string {
 // generateRandomString ランダムな文字列を生成
 func generateRandomString(length int) string {
 	b := make([]byte, length)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// ランダム文字列生成に失敗した場合は現在時刻ベースの文字列を返す
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
 	return base64.URLEncoding.EncodeToString(b)[:length]
 }

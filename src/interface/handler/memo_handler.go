@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -30,6 +32,17 @@ func NewMemoHandler(memoUsecase usecase.MemoUsecase, logger *logrus.Logger) *Mem
 
 // CreateMemo creates a new memo
 func (h *MemoHandler) CreateMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	var req CreateMemoRequestDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("リクエストのバインドに失敗")
@@ -57,7 +70,7 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 	// 入力値のサニタイゼーション
 	sanitizedReq := CreateMemoRequestDTO{
 		Title:    h.validator.SanitizeInput(req.Title),
-		Content:  h.validator.SanitizeInput(req.Content),
+		Content:  h.validator.SanitizeContent(req.Content), // コンテンツ専用サニタイゼーション
 		Category: h.validator.SanitizeInput(req.Category),
 		Tags:     h.validator.SanitizeTags(req.Tags),
 		Priority: req.Priority, // 列挙値なのでサニタイズ不要
@@ -71,7 +84,7 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		Priority: sanitizedReq.Priority,
 	}
 
-	memo, err := h.memoUsecase.CreateMemo(c.Request.Context(), usecaseReq)
+	memo, err := h.memoUsecase.CreateMemo(c.Request.Context(), userID, usecaseReq)
 	if err != nil {
 		h.logger.WithError(err).Error("メモの作成に失敗")
 
@@ -87,12 +100,23 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("memo_id", memo.ID).Info("メモを作成しました")
+	h.logger.WithField("memo_id", memo.ID).WithField("user_id", userID).Info("メモを作成しました")
 	c.JSON(http.StatusCreated, h.toMemoResponseDTO(memo))
 }
 
 // GetMemo retrieves a memo by ID
 func (h *MemoHandler) GetMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
@@ -104,7 +128,7 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 		return
 	}
 
-	memo, err := h.memoUsecase.GetMemo(c.Request.Context(), id)
+	memo, err := h.memoUsecase.GetMemo(c.Request.Context(), userID, id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
 
@@ -124,6 +148,19 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 
 // ListMemos retrieves memos with filtering
 func (h *MemoHandler) ListMemos(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
+	h.logger.WithField("user_id", userID).Error("=== HANDLER ListMemos called ===")
+
 	var filterDTO MemoFilterDTO
 	if err := c.ShouldBindQuery(&filterDTO); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
@@ -158,9 +195,13 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		Limit:    filterDTO.Limit,
 	}
 
+	// ステータスフィルターが指定されていない場合は全てのメモを取得
+	// （activeとarchivedの両方を含む）
+
 	filter := h.toDomainFilter(sanitizedFilter)
 
-	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), filter)
+	h.logger.WithField("user_id", userID).WithField("filter", filter).Error("=== HANDLER calling usecase.ListMemos ===")
+	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), userID, filter)
 	if err != nil {
 		h.logger.WithError(err).Error("メモリストの取得に失敗")
 
@@ -184,11 +225,108 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		TotalPages: (total + filter.Limit - 1) / filter.Limit,
 	}
 
+	// ページネーション情報をヘッダーに追加
+	c.Header("X-Total-Count", fmt.Sprintf("%d", total))
+	c.Header("X-Page", fmt.Sprintf("%d", filter.Page))
+	c.Header("X-Limit", fmt.Sprintf("%d", filter.Limit))
+	c.Header("X-Total-Pages", fmt.Sprintf("%d", (total+filter.Limit-1)/filter.Limit))
+	c.Header("Content-Type", "application/json; charset=utf-8")
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ListArchivedMemos retrieves archived memos with filtering
+func (h *MemoHandler) ListArchivedMemos(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
+	var filterDTO MemoFilterDTO
+	if err := c.ShouldBindQuery(&filterDTO); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Invalid query parameters",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// アーカイブメモ専用：ステータスを強制的にarchivedに設定
+	filterDTO.Status = "archived"
+
+	// フィルターのバリデーション
+	if err := h.validator.Validate(&filterDTO); err != nil {
+		h.logger.WithError(err).Error("フィルターバリデーションエラー")
+		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, validationErrors)
+			return
+		}
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Filter validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// フィルター値のサニタイゼーション
+	sanitizedFilter := MemoFilterDTO{
+		Category: h.validator.SanitizeInput(filterDTO.Category),
+		Status:   "archived", // 強制的にarchived
+		Priority: filterDTO.Priority,
+		Search:   h.validator.SanitizeInput(filterDTO.Search),
+		Tags:     h.validator.SanitizeInput(filterDTO.Tags),
+		Page:     filterDTO.Page,
+		Limit:    filterDTO.Limit,
+	}
+
+	filter := h.toDomainFilter(sanitizedFilter)
+
+	memos, total, err := h.memoUsecase.ListMemos(c.Request.Context(), userID, filter)
+	if err != nil {
+		h.logger.WithError(err).Error("アーカイブメモリストの取得に失敗")
+
+		status := http.StatusInternalServerError
+		if err == usecase.ErrInvalidPage || err == usecase.ErrInvalidLimit {
+			status = http.StatusBadRequest
+		}
+
+		c.JSON(status, ErrorResponseDTO{
+			Error:   "Failed to get archived memos",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	response := MemoListResponseDTO{
+		Memos:      h.toMemoResponseDTOs(memos),
+		Total:      total,
+		Page:       filter.Page,
+		Limit:      filter.Limit,
+		TotalPages: (total + filter.Limit - 1) / filter.Limit,
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
 // UpdateMemo updates an existing memo
 func (h *MemoHandler) UpdateMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
@@ -235,7 +373,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		sanitizedReq.Title = &sanitized
 	}
 	if req.Content != nil {
-		sanitized := h.validator.SanitizeInput(*req.Content)
+		sanitized := h.validator.SanitizeContent(*req.Content) // コンテンツ専用サニタイゼーション
 		sanitizedReq.Content = &sanitized
 	}
 	if req.Category != nil {
@@ -255,7 +393,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		Status:   sanitizedReq.Status,
 	}
 
-	memo, err := h.memoUsecase.UpdateMemo(c.Request.Context(), id, usecaseReq)
+	memo, err := h.memoUsecase.UpdateMemo(c.Request.Context(), userID, id, usecaseReq)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの更新に失敗")
 
@@ -278,8 +416,19 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 	c.JSON(http.StatusOK, h.toMemoResponseDTO(memo))
 }
 
-// DeleteMemo deletes a memo
+// DeleteMemo deletes a memo (archives active memos, permanently deletes archived ones)
 func (h *MemoHandler) DeleteMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
@@ -291,9 +440,79 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.DeleteMemo(c.Request.Context(), id)
+	// permanentクエリパラメータ取得
+	permanent := false
+	if p := c.Query("permanent"); p != "" {
+		permanent = strings.ToLower(p) == "true"
+	}
+
+	if permanent {
+		err = h.memoUsecase.PermanentDeleteMemo(c.Request.Context(), userID, id)
+		if err != nil {
+			h.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
+			var status int
+			switch err {
+			case usecase.ErrMemoNotFound:
+				status = http.StatusNotFound
+			case usecase.ErrInvalidStatus:
+				status = http.StatusBadRequest
+			default:
+				status = http.StatusInternalServerError
+			}
+			c.JSON(status, ErrorResponseDTO{
+				Error:   "Failed to permanently delete memo",
+				Message: err.Error(),
+			})
+			return
+		}
+		h.logger.WithField("memo_id", id).Info("メモを完全削除しました")
+		c.Status(http.StatusNoContent)
+		return
+	} else {
+		err = h.memoUsecase.DeleteMemo(c.Request.Context(), userID, id)
+		if err != nil {
+			h.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
+			status := http.StatusInternalServerError
+			if err == usecase.ErrMemoNotFound {
+				status = http.StatusNotFound
+			}
+			c.JSON(status, ErrorResponseDTO{
+				Error: "Failed to delete memo",
+			})
+			return
+		}
+		h.logger.WithField("memo_id", id).Info("メモを削除しました")
+		c.Status(http.StatusNoContent)
+	}
+}
+
+// PermanentDeleteMemo permanently deletes a memo from database
+func (h *MemoHandler) PermanentDeleteMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
 	if err != nil {
-		h.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := h.validator.ValidateID(idStr)
+	if err != nil {
+		h.logger.WithError(err).WithField("raw_id", idStr).Error("無効なID形式")
+		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
+			Error:   "Invalid memo ID",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	err = h.memoUsecase.PermanentDeleteMemo(c.Request.Context(), userID, id)
+	if err != nil {
+		h.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
 
 		status := http.StatusInternalServerError
 		if err == usecase.ErrMemoNotFound {
@@ -301,17 +520,28 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 		}
 
 		c.JSON(status, ErrorResponseDTO{
-			Error: "Failed to delete memo",
+			Error: "Failed to permanently delete memo",
 		})
 		return
 	}
 
-	h.logger.WithField("memo_id", id).Info("メモを削除しました")
+	h.logger.WithField("memo_id", id).Info("メモを完全削除しました")
 	c.Status(http.StatusNoContent)
 }
 
 // ArchiveMemo archives a memo
 func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
@@ -323,7 +553,7 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.ArchiveMemo(c.Request.Context(), id)
+	_, err = h.memoUsecase.ArchiveMemo(c.Request.Context(), userID, id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモのアーカイブに失敗")
 
@@ -344,6 +574,17 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 
 // RestoreMemo restores an archived memo
 func (h *MemoHandler) RestoreMemo(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := h.validator.ValidateID(idStr)
 	if err != nil {
@@ -355,7 +596,7 @@ func (h *MemoHandler) RestoreMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.RestoreMemo(c.Request.Context(), id)
+	_, err = h.memoUsecase.RestoreMemo(c.Request.Context(), userID, id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの復元に失敗")
 
@@ -376,6 +617,17 @@ func (h *MemoHandler) RestoreMemo(c *gin.Context) {
 
 // SearchMemos searches memos
 func (h *MemoHandler) SearchMemos(c *gin.Context) {
+	// 認証されたユーザーIDを取得
+	userID, err := h.getUserIDFromContext(c)
+	if err != nil {
+		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
+		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
+			Error:   "Unauthorized",
+			Message: "User authentication required",
+		})
+		return
+	}
+
 	var filterDTO MemoFilterDTO
 	if err := c.ShouldBindQuery(&filterDTO); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
@@ -410,10 +662,13 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 		Limit:    filterDTO.Limit,
 	}
 
+	// ステータスフィルターが指定されていない場合は全てのメモを検索
+	// （activeとarchivedの両方を含む）
+
 	query := sanitizedFilter.Search
 	filter := h.toDomainFilter(sanitizedFilter)
 
-	memos, total, err := h.memoUsecase.SearchMemos(c.Request.Context(), query, filter)
+	memos, total, err := h.memoUsecase.SearchMemos(c.Request.Context(), userID, query, filter)
 	if err != nil {
 		h.logger.WithError(err).Error("メモ検索に失敗")
 
@@ -483,4 +738,19 @@ func (h *MemoHandler) toDomainFilter(dto MemoFilterDTO) domain.MemoFilter {
 		Page:     dto.Page,
 		Limit:    dto.Limit,
 	}
+}
+
+// getUserIDFromContext extracts user ID from gin context
+func (h *MemoHandler) getUserIDFromContext(c *gin.Context) (int, error) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		return 0, errors.New("user_id not found in context")
+	}
+
+	userID, ok := userIDValue.(int)
+	if !ok {
+		return 0, errors.New("user_id is not an integer")
+	}
+
+	return userID, nil
 }

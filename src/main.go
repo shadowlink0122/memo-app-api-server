@@ -12,13 +12,15 @@ import (
 
 	"memo-app/src/config"
 	"memo-app/src/database"
-	"memo-app/src/infrastructure/repository"
+	"memo-app/src/handlers"
+	infraRepo "memo-app/src/infrastructure/repository"
 	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
+	userRepo "memo-app/src/repository"
 	"memo-app/src/routes"
+	"memo-app/src/service"
 	"memo-app/src/storage"
-	"memo-app/src/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -29,7 +31,7 @@ func main() {
 	if !isRunningInDocker() {
 		fmt.Println("⚠️  エラー: このアプリケーションはDocker環境でのみ実行できます")
 		fmt.Println("   Docker Composeを使用して起動してください:")
-		fmt.Println("   docker-compose up -d")
+		fmt.Println("   docker compose up -d")
 		os.Exit(1)
 	}
 
@@ -60,10 +62,16 @@ func main() {
 	}
 	defer db.Close()
 
-	// リポジトリ、ユースケース、ハンドラーを初期化（クリーンアーキテクチャ）
-	memoRepo := repository.NewMemoRepository(db, logger.Log)
-	memoUsecase := usecase.NewMemoUsecase(memoRepo)
-	memoHandler := handler.NewMemoHandler(memoUsecase, logger.Log)
+	// リポジトリ、サービス、ハンドラーを初期化
+	memoRepo := infraRepo.NewMemoRepository(db, logger.Log)
+	memoService := service.NewMemoService(memoRepo, logger.Log)
+	memoHandler := handler.NewMemoHandler(memoService, logger.Log)
+
+	// 認証関連のコンポーネントを初期化
+	userRepository := userRepo.NewUserRepository(db.DB)
+	jwtService := service.NewJWTService(cfg)
+	authService := service.NewAuthService(userRepository, jwtService, cfg)
+	authHandler := handlers.NewAuthHandler(authService)
 
 	// S3アップローダーを初期化（設定が有効な場合）
 	var uploader *storage.LogUploader
@@ -196,7 +204,9 @@ func main() {
 	// }
 
 	// メモAPIのルートを設定
-	routes.SetupRoutes(r, memoHandler)
+	routes.SetupRoutes(r, memoHandler, authHandler, jwtService, userRepository)
+	// Ginのルート一覧を出力
+	// panic(fmt.Sprintf("[ROUTE] 登録数: %d\n%v", len(r.Routes()), r.Routes()))
 
 	// グレースフルシャットダウンの設定
 	go func() {
@@ -222,6 +232,7 @@ func main() {
 	serverAddr := ":" + cfg.Server.Port
 	logger.Log.WithField("port", cfg.Server.Port).Info("サーバーを開始します")
 
+	logger.Log.Infof("[ROUTE] 全体: %+v", r.Routes())
 	if err := r.Run(serverAddr); err != nil {
 		logger.Log.WithError(err).Fatal("サーバーの起動に失敗")
 	}

@@ -62,6 +62,7 @@ func TestMemoListResponse_Structure(t *testing.T) {
 	memos := []models.Memo{
 		{
 			ID:       1,
+			UserID:   1, // user_idを追加
 			Title:    "Test Memo 1",
 			Content:  "Content 1",
 			Category: "Test",
@@ -70,6 +71,7 @@ func TestMemoListResponse_Structure(t *testing.T) {
 		},
 		{
 			ID:       2,
+			UserID:   1, // user_idを追加
 			Title:    "Test Memo 2",
 			Content:  "Content 2",
 			Category: "Work",

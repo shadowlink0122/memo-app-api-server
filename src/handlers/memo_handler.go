@@ -37,6 +37,14 @@ func NewMemoHandler(service service.MemoServiceInterface, logger *logrus.Logger)
 // @Failure 500 {object} map[string]string
 // @Router /api/memos [post]
 func (h *MemoHandler) CreateMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var req models.CreateMemoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("リクエストのバインドに失敗")
@@ -44,14 +52,14 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		return
 	}
 
-	memo, err := h.service.CreateMemo(c.Request.Context(), &req)
+	memo, err := h.service.CreateMemo(c.Request.Context(), userID.(int), &req)
 	if err != nil {
 		h.logger.WithError(err).Error("メモの作成に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create memo", "details": err.Error()})
 		return
 	}
 
-	h.logger.WithField("memo_id", memo.ID).Info("メモを作成しました")
+	h.logger.WithField("memo_id", memo.ID).WithField("returned_memo_user_id", memo.UserID).Info("メモを作成しました")
 	c.JSON(http.StatusCreated, memo)
 }
 
@@ -67,13 +75,21 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/{id} [get]
 func (h *MemoHandler) GetMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
 		return
 	}
 
-	memo, err := h.service.GetMemo(c.Request.Context(), id)
+	memo, err := h.service.GetMemo(c.Request.Context(), userID.(int), id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
 		if err.Error() == "memo not found" {
@@ -104,6 +120,14 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos [get]
 func (h *MemoHandler) ListMemos(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	var filter models.MemoFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
 		h.logger.WithError(err).Error("クエリパラメータのバインドに失敗")
@@ -111,7 +135,7 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListMemos(c.Request.Context(), &filter)
+	result, err := h.service.ListMemos(c.Request.Context(), userID.(int), &filter)
 	if err != nil {
 		h.logger.WithError(err).Error("メモリストの取得に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list memos", "details": err.Error()})
@@ -135,6 +159,14 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/{id} [put]
 func (h *MemoHandler) UpdateMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
@@ -148,7 +180,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		return
 	}
 
-	memo, err := h.service.UpdateMemo(c.Request.Context(), id, &req)
+	memo, err := h.service.UpdateMemo(c.Request.Context(), userID.(int), id, &req)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの更新に失敗")
 		if err.Error() == "memo not found" {
@@ -174,13 +206,21 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/{id} [delete]
 func (h *MemoHandler) DeleteMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
 		return
 	}
 
-	err = h.service.DeleteMemo(c.Request.Context(), id)
+	err = h.service.DeleteMemo(c.Request.Context(), userID.(int), id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
 		if err.Error() == "memo not found" {
@@ -206,13 +246,21 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/{id}/archive [patch]
 func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
 		return
 	}
 
-	memo, err := h.service.ArchiveMemo(c.Request.Context(), id)
+	memo, err := h.service.ArchiveMemo(c.Request.Context(), userID.(int), id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモのアーカイブに失敗")
 		if err.Error() == "memo not found" {
@@ -238,13 +286,21 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/{id}/restore [patch]
 func (h *MemoHandler) RestoreMemo(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
 		return
 	}
 
-	memo, err := h.service.RestoreMemo(c.Request.Context(), id)
+	memo, err := h.service.RestoreMemo(c.Request.Context(), userID.(int), id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの復元に失敗")
 		if err.Error() == "memo not found" {
@@ -271,6 +327,14 @@ func (h *MemoHandler) RestoreMemo(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /api/memos/search [get]
 func (h *MemoHandler) SearchMemos(c *gin.Context) {
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	query := c.Query("q")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query is required"})
@@ -280,7 +344,7 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
-	result, err := h.service.SearchMemos(c.Request.Context(), query, page, limit)
+	result, err := h.service.SearchMemos(c.Request.Context(), userID.(int), query, page, limit)
 	if err != nil {
 		h.logger.WithError(err).Error("メモ検索に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search memos", "details": err.Error()})
