@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS memos (
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     is_public BOOLEAN NOT NULL DEFAULT false,
+    deadline TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE

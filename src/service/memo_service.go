@@ -41,39 +41,41 @@ func (s *MemoService) CreateMemo(ctx context.Context, userID int, req usecase.Cr
 	// バリデーション
 	// domain.Memo型に変換する前に、CreateMemoRequestの内容をvalidateCreateRequestで検証
 	// 必要ならmodels.CreateMemoRequest型に変換
-	modelReq := &models.CreateMemoRequest{
-		Title:    req.Title,
-		Content:  req.Content,
-		Category: req.Category,
-		Tags:     req.Tags,
-		Priority: req.Priority,
+modelReq := &models.CreateMemoRequest{
+	Title:    req.Title,
+	Content:  req.Content,
+	Category: req.Category,
+	Tags:     req.Tags,
+	Priority: req.Priority,
+	Deadline: req.Deadline, // ここでDeadlineを渡す
+}
+if err := s.validateCreateRequest(modelReq); err != nil {
+	return nil, err
+}
+// タグの正規化（空白除去・重複排除）
+normalizedTags := make([]string, 0, len(req.Tags))
+tagSet := make(map[string]struct{})
+for _, tag := range req.Tags {
+	trimmed := strings.TrimSpace(tag)
+	if trimmed == "" {
+		continue
 	}
-	if err := s.validateCreateRequest(modelReq); err != nil {
-		return nil, err
+	if _, exists := tagSet[trimmed]; !exists {
+		tagSet[trimmed] = struct{}{}
+		normalizedTags = append(normalizedTags, trimmed)
 	}
-	// タグの正規化（空白除去・重複排除）
-	normalizedTags := make([]string, 0, len(req.Tags))
-	tagSet := make(map[string]struct{})
-	for _, tag := range req.Tags {
-		trimmed := strings.TrimSpace(tag)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := tagSet[trimmed]; !exists {
-			tagSet[trimmed] = struct{}{}
-			normalizedTags = append(normalizedTags, trimmed)
-		}
-	}
-	memo := &domain.Memo{
-		UserID:   userID,
-		Title:    req.Title,
-		Content:  req.Content,
-		Category: req.Category,
-		Tags:     normalizedTags,
-		Priority: domain.Priority(req.Priority),
-		Status:   domain.StatusActive,
-	}
-	return s.repo.Create(ctx, memo)
+}
+memo := &domain.Memo{
+	UserID:   userID,
+	Title:    req.Title,
+	Content:  req.Content,
+	Category: req.Category,
+	Tags:     normalizedTags,
+	Priority: domain.Priority(req.Priority),
+	Status:   domain.StatusActive,
+	Deadline: req.Deadline, // ここでDeadlineを渡す
+}
+return s.repo.Create(ctx, memo)
 }
 
 // GetMemo retrieves a memo by ID
@@ -94,7 +96,6 @@ func (s *MemoService) ListMemos(ctx context.Context, userID int, filter domain.M
 	if filter.Status != "" && filter.Status != domain.StatusActive && filter.Status != domain.StatusArchived {
 		return nil, 0, fmt.Errorf("status must be one of: active, archived")
 	}
-	// Page/Limitのデフォルト値補正
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
@@ -153,6 +154,9 @@ func (s *MemoService) UpdateMemo(ctx context.Context, userID int, id int, req us
 	}
 	if req.Status != nil {
 		existingMemo.Status = domain.Status(*req.Status)
+	}
+	if req.Deadline != nil {
+		existingMemo.Deadline = req.Deadline
 	}
 	existingMemo.UpdatedAt = time.Now()
 	return s.repo.Update(ctx, id, userID, existingMemo)
@@ -248,7 +252,20 @@ func (s *MemoService) validateAndNormalizeFilter(filter *models.MemoFilter) erro
 	// 検索クエリの正規化
 	filter.Search = strings.TrimSpace(filter.Search)
 	filter.Category = strings.TrimSpace(filter.Category)
-	filter.Tags = strings.TrimSpace(filter.Tags)
+	// Tags: 各タグの空白除去・重複排除
+	normalizedTags := make([]string, 0, len(filter.Tags))
+	tagSet := make(map[string]struct{})
+	for _, tag := range filter.Tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := tagSet[trimmed]; !exists {
+			tagSet[trimmed] = struct{}{}
+			normalizedTags = append(normalizedTags, trimmed)
+		}
+	}
+	filter.Tags = normalizedTags
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 
 	"memo-app/src/domain"
 	"memo-app/src/usecase"
+	"memo-app/src/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -79,6 +80,36 @@ func (m *MockMemoRepository) PermanentDelete(ctx context.Context, id int, userID
 }
 
 func TestMemoUsecase_CreateMemo(t *testing.T) {
+	t.Run("create memo with deadline", func(t *testing.T) {
+		mockRepo := new(MockMemoRepository)
+		deadline := time.Date(2025, 7, 30, 12, 0, 0, 0, time.UTC)
+		req := usecase.CreateMemoRequest{
+			Title:    "Deadline Memo",
+			Content:  "締切付きメモ",
+			Category: "Work",
+			Tags:     []string{"deadline"},
+			Priority: "high",
+			Deadline: &deadline,
+		}
+		mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.Memo")).Return(&domain.Memo{
+			ID:        2,
+			Title:     req.Title,
+			Content:   req.Content,
+			Category:  req.Category,
+			Tags:      req.Tags,
+			Priority:  domain.PriorityHigh,
+			Status:    domain.StatusActive,
+			Deadline:  req.Deadline,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}, nil)
+		uc := usecase.NewMemoUsecase(mockRepo)
+		result, err := uc.CreateMemo(context.Background(), 1, req)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, req.Deadline, result.Deadline)
+		mockRepo.AssertExpectations(t)
+	})
 	tests := []struct {
 		name          string
 		request       usecase.CreateMemoRequest
@@ -233,6 +264,26 @@ func TestMemoUsecase_GetMemo(t *testing.T) {
 }
 
 func TestMemoUsecase_ListMemos(t *testing.T) {
+	// logger初期化（nil panic防止）
+	_ = logger.InitLogger()
+	t.Run("list memos with deadline filter", func(t *testing.T) {
+		mockRepo := new(MockMemoRepository)
+		deadline := time.Date(2025, 7, 30, 12, 0, 0, 0, time.UTC)
+		filter := domain.MemoFilter{
+			DeadlineFrom: &deadline,
+			DeadlineTo:   &deadline,
+			Page: 1,
+			Limit: 10,
+		}
+		expected := []domain.Memo{{ID: 3, Title: "Deadline Memo", Deadline: &deadline}}
+		mockRepo.On("List", mock.Anything, 1, filter).Return(expected, 1, nil)
+		uc := usecase.NewMemoUsecase(mockRepo)
+		result, total, err := uc.ListMemos(context.Background(), 1, filter)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, total)
+		assert.Equal(t, &deadline, result[0].Deadline)
+		mockRepo.AssertExpectations(t)
+	})
 	mockRepo := new(MockMemoRepository)
 
 	expectedMemos := []domain.Memo{
@@ -279,7 +330,7 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 			name:   "successful archive",
 			memoID: 1,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Archive", mock.Anything, 1, 1).Return(nil)
+				m.On("Archive", mock.Anything, 1, 1).Return(&domain.Memo{ID: 1, UserID: 1}, nil)
 			},
 			expectedError: false,
 		},
@@ -287,7 +338,7 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: 999,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Archive", mock.Anything, 999, 1).Return(assert.AnError)
+				m.On("Archive", mock.Anything, 999, 1).Return(nil, assert.AnError)
 			},
 			expectedError: true,
 		},
@@ -326,7 +377,7 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 			name:   "successful restore",
 			memoID: 1,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Restore", mock.Anything, 1, 1).Return(nil)
+				m.On("Restore", mock.Anything, 1, 1).Return(&domain.Memo{ID: 1, UserID: 1}, nil)
 			},
 			expectedError: false,
 		},
@@ -334,7 +385,7 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 			name:   "memo not found",
 			memoID: 999,
 			mockSetup: func(m *MockMemoRepository) {
-				m.On("Restore", mock.Anything, 999, 1).Return(assert.AnError)
+				m.On("Restore", mock.Anything, 999, 1).Return(nil, assert.AnError)
 			},
 			expectedError: true,
 		},

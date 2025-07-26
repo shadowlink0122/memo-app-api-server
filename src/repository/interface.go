@@ -1,3 +1,0 @@
-package repository
-
-// ...既存のコード...

@@ -63,7 +63,7 @@ func main() {
 	defer db.Close()
 
 	// リポジトリ、サービス、ハンドラーを初期化
-	memoRepo := infraRepo.NewMemoRepository(db, logger.Log)
+memoRepo := infraRepo.NewMemoRepository(db.DB, logger.Log)
 	memoService := service.NewMemoService(memoRepo, logger.Log)
 	memoHandler := handler.NewMemoHandler(memoService, logger.Log)
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"memo-app/src/database"
 	"memo-app/src/domain"
 
 	"memo-app/src/usecase"
@@ -15,20 +14,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// import文の後
 type MemoRepository struct {
-	db     *database.DB
+	db     *sql.DB
 	logger *logrus.Logger
 }
 
-func NewMemoRepository(db *database.DB, logger *logrus.Logger) *MemoRepository {
+func NewMemoRepository(db *sql.DB, logger *logrus.Logger) *MemoRepository {
 	return &MemoRepository{
 		db:     db,
 		logger: logger,
 	}
 }
-
-// ...既存のコード...
 
 // Create creates a new memo (domain interface)
 func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
@@ -37,14 +33,16 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 		return nil, fmt.Errorf("failed to marshal tags: %w", err)
 	}
 	now := time.Now()
+	r.logger.WithField("deadline", memo.Deadline).Info("CreateMemo: deadline value before DB insert")
+	fmt.Printf("[DEBUG] CreateMemo: deadline=%v\n", memo.Deadline)
 	query := `
-		INSERT INTO memos (user_id, title, content, category, tags, priority, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO memos (user_id, title, content, category, tags, priority, status, deadline, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id`
 	var id int
 	err = r.db.QueryRowContext(ctx, query,
 		memo.UserID, memo.Title, memo.Content, memo.Category, string(tagsJSON),
-		memo.Priority, memo.Status, now, now,
+		memo.Priority, memo.Status, memo.Deadline, now, now,
 	).Scan(&id)
 	if err != nil {
 		r.logger.WithError(err).Error("メモの作成に失敗")
@@ -59,17 +57,18 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 
 // GetByID retrieves a memo by ID for a specific user
 func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
-	query := `
-		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
-		FROM memos WHERE id = $1 AND user_id = $2`
-	var memo domain.Memo
-	var tagsStr sql.NullString
-	var completedAt sql.NullTime
-	err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
-		&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category,
-		&tagsStr, &memo.Priority, &memo.Status,
-		&memo.CreatedAt, &memo.UpdatedAt, &completedAt,
-	)
+query := `
+	SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at, deadline
+	FROM memos WHERE id = $1 AND user_id = $2`
+var memo domain.Memo
+var tagsStr sql.NullString
+var completedAt sql.NullTime
+var deadline sql.NullTime
+err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
+	&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category,
+	&tagsStr, &memo.Priority, &memo.Status,
+	&memo.CreatedAt, &memo.UpdatedAt, &completedAt, &deadline,
+)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("memo not found")
@@ -83,16 +82,19 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*doma
 		_ = json.Unmarshal([]byte(tagsStr.String), &tags)
 		memo.Tags = tags
 	}
-	if completedAt.Valid {
-		memo.CompletedAt = &completedAt.Time
-	}
+if completedAt.Valid {
+	memo.CompletedAt = &completedAt.Time
+}
+if deadline.Valid {
+	memo.Deadline = &deadline.Time
+}
 	return &memo, nil
 }
 
 // List retrieves memos for a user with filtering (domain interface)
 func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	query := `
-		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
+		SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at, deadline
 		FROM memos 
 		WHERE user_id = $1`
 	args := []interface{}{userID}
@@ -112,7 +114,28 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		query += fmt.Sprintf(" AND priority = $%d", argCount)
 		args = append(args, filter.Priority)
 	}
-	query += " ORDER BY created_at DESC"
+	// 締切範囲フィルタ
+	if filter.DeadlineFrom != nil {
+		argCount++
+		query += fmt.Sprintf(" AND deadline >= $%d", argCount)
+		args = append(args, *filter.DeadlineFrom)
+	}
+	if filter.DeadlineTo != nil {
+		argCount++
+		query += fmt.Sprintf(" AND deadline <= $%d", argCount)
+		args = append(args, *filter.DeadlineTo)
+	}
+	// 締切指定がない場合は期限が近い順（期限切れ3日超は除外）
+	if filter.DeadlineFrom == nil && filter.DeadlineTo == nil {
+		now := time.Now()
+		threeDaysAgo := now.Add(-72 * time.Hour)
+		argCount++
+		query += fmt.Sprintf(" AND (deadline IS NULL OR deadline >= $%d)", argCount)
+		args = append(args, threeDaysAgo)
+		query += " ORDER BY deadline ASC NULLS LAST"
+	} else {
+		query += " ORDER BY deadline ASC NULLS LAST"
+	}
 	if filter.Limit > 0 {
 		argCount++
 		query += fmt.Sprintf(" LIMIT $%d", argCount)
@@ -135,10 +158,11 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		var memo domain.Memo
 		var tagsStr sql.NullString
 		var completedAt sql.NullTime
+		var deadline sql.NullTime
 		err := rows.Scan(
 			&memo.ID, &memo.UserID, &memo.Title, &memo.Content, &memo.Category,
 			&tagsStr, &memo.Priority, &memo.Status,
-			&memo.CreatedAt, &memo.UpdatedAt, &completedAt,
+			&memo.CreatedAt, &memo.UpdatedAt, &completedAt, &deadline,
 		)
 		if err != nil {
 			r.logger.WithError(err).Error("Failed to scan memo")
@@ -151,6 +175,9 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		}
 		if completedAt.Valid {
 			memo.CompletedAt = &completedAt.Time
+		}
+		if deadline.Valid {
+			memo.Deadline = &deadline.Time
 		}
 		memos = append(memos, memo)
 	}
@@ -216,19 +243,31 @@ func (r *MemoRepository) Update(ctx context.Context, id int, userID int, memo *d
 	now := time.Now()
 	query := `
 		UPDATE memos 
-		SET title = $1, content = $2, category = $3, tags = $4, priority = $5, status = $6, updated_at = $7
-		WHERE id = $8 AND user_id = $9
-		RETURNING id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at`
+		SET title = $1, content = $2, category = $3, tags = $4, priority = $5, status = $6, deadline = $7, updated_at = $8
+		WHERE id = $9 AND user_id = $10
+		RETURNING id, user_id, title, content, category, tags, priority, status, deadline, created_at, updated_at, completed_at`
 	var updated domain.Memo
 	var tagsStr sql.NullString
 	var completedAt sql.NullTime
+	var deadline sql.NullTime
 	err = r.db.QueryRowContext(ctx, query,
-		title, content, category, string(tagsJSON), priority, status, now, id, userID,
+		title, content, category, string(tagsJSON), priority, status, memo.Deadline, now, id, userID,
 	).Scan(
 		&updated.ID, &updated.UserID, &updated.Title, &updated.Content, &updated.Category,
-		&tagsStr, &updated.Priority, &updated.Status,
+		&tagsStr, &updated.Priority, &updated.Status, &deadline,
 		&updated.CreatedAt, &updated.UpdatedAt, &completedAt,
 	)
+	if tagsStr.Valid {
+		var tags []string
+		_ = json.Unmarshal([]byte(tagsStr.String), &tags)
+		updated.Tags = tags
+	}
+	if completedAt.Valid {
+		updated.CompletedAt = &completedAt.Time
+	}
+	if deadline.Valid {
+		updated.Deadline = &deadline.Time
+	}
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("memo not found")

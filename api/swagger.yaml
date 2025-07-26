@@ -14,37 +14,33 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
 paths:
-  /:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: ヘルスチェック
+      description: アプリケーションの状態を確認します
+      responses:
+        "200":
+          description: サービスが正常に動作しています
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /hello:
     get:
       tags:
         - Hello
-      summary: Hello World (JSON)
-      description: JSON形式でHello Worldメッセージを返します
+      summary: Hello World (Text)
+      description: テキスト形式でHello Worldメッセージを返します
       responses:
         "200":
           description: 成功
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: "#/components/schemas/HelloResponse"
-        "405":
-          description: メソッドが許可されていません
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    post:
-      tags:
-        - Hello
-      summary: メソッド不許可テスト
-      description: POSTメソッドは許可されていません（405エラー）
-      responses:
-        "405":
-          description: メソッドが許可されていません
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                type: string
+                example: "Hello World!"
     put:
       tags:
         - Hello
@@ -81,33 +77,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /health:
-    get:
-      tags:
-        - Health
-      summary: ヘルスチェック
-      description: アプリケーションの状態を確認します
-      responses:
-        "200":
-          description: サービスが正常に動作しています
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-  /hello:
-    get:
-      tags:
-        - Hello
-      summary: Hello World (Text)
-      description: テキスト形式でHello Worldメッセージを返します
-      responses:
-        "200":
-          description: 成功
-          content:
-            text/plain:
-              schema:
-                type: string
-                example: "Hello World!"
 
   /api/auth/login:
     post:
@@ -681,6 +650,20 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - name: deadlineFrom
+          in: query
+          description: 締切の開始日時（RFC3339形式）
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: deadlineTo
+          in: query
+          description: 締切の終了日時（RFC3339形式）
+          required: false
+          schema:
+            type: string
+            format: date-time
         - name: q
           in: query
           description: 検索キーワード
@@ -830,20 +813,22 @@ components:
     HealthResponse:
       type: object
       properties:
-        status:
+        title:
           type: string
-          example: "OK"
-        timestamp:
+        content:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        priority:
+          type: string
+        deadline:
           type: string
           format: date-time
-          example: "2025-07-22T10:30:00+09:00"
-        uptime:
-          type: string
-          example: "running"
-      required:
-        - status
-        - timestamp
-        - uptime
+          description: 任意の締切日時
 
     # 認証関連スキーマ
     RegisterRequest:
@@ -1059,6 +1044,10 @@ components:
           description: 優先度
           enum: [low, medium, high]
           example: "high"
+        deadline:
+          type: string
+          format: date-time
+          description: 任意の締切日時
       required:
         - title
         - content
@@ -1066,6 +1055,10 @@ components:
     UpdateMemoRequest:
       type: object
       properties:
+        deadline:
+          type: string
+          format: date-time
+          description: 任意の締切日時
         title:
           type: string
           description: メモのタイトル
@@ -1136,6 +1129,10 @@ components:
           description: ステータス
           enum: [active, archived]
           example: "active"
+        deadline:
+          type: string
+          format: date-time
+          description: 任意の締切日時
         created_at:
           type: string
           format: date-time
@@ -1161,6 +1158,7 @@ components:
         - tags
         - priority
         - status
+        - deadline
         - created_at
         - updated_at
 
@@ -1169,21 +1167,14 @@ components:
       properties:
         memos:
           type: array
-          description: メモのリスト
           items:
             $ref: "#/components/schemas/MemoResponse"
         total:
           type: integer
-          description: 総件数
-          example: 25
         page:
           type: integer
-          description: 現在のページ番号
-          example: 1
         limit:
           type: integer
-          description: 1ページあたりの件数
-          example: 10
         total_pages:
           type: integer
           description: 総ページ数

@@ -27,6 +27,7 @@ type CreateMemoRequest struct {
 	Category string
 	Tags     []string
 	Priority string
+	Deadline *time.Time
 }
 
 // UpdateMemoRequest represents input for updating a memo
@@ -37,6 +38,7 @@ type UpdateMemoRequest struct {
 	Tags     []string
 	Priority *string
 	Status   *string
+	Deadline *time.Time
 }
 
 // MemoUsecase defines the interface for memo business logic
@@ -82,6 +84,7 @@ func (u *memoUsecase) CreateMemo(ctx context.Context, userID int, req CreateMemo
 		Tags:      u.normalizeTags(req.Tags),
 		Priority:  priority,
 		Status:    domain.StatusActive,
+		Deadline:  req.Deadline,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

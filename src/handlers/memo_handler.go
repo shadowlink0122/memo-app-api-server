@@ -1,15 +1,28 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"memo-app/src/domain"
 	"memo-app/src/models"
 	"memo-app/src/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
+
+// tags変換用関数
+func toTagsString(tags []string) string {
+	if len(tags) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(tags)
+	return string(b)
+}
 
 // MemoHandler represents the memo handler
 type MemoHandler struct {
@@ -37,6 +50,13 @@ func NewMemoHandler(service service.MemoServiceInterface, logger *logrus.Logger)
 // @Failure 500 {object} map[string]string
 // @Router /api/memos [post]
 func (h *MemoHandler) CreateMemo(c *gin.Context) {
+	var req models.CreateMemoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.WithError(err).Error("リクエストのバインドに失敗")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format", "details": err.Error()})
+		return
+	}
+	fmt.Printf("[DEBUG] Handler: req.Deadline=%v\n", req.Deadline)
 	// コンテキストからユーザーIDを取得
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -44,15 +64,19 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-
-	var req models.CreateMemoRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("リクエストのバインドに失敗")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format", "details": err.Error()})
-		return
+	var deadlinePtr *time.Time
+	if req.Deadline != nil {
+		deadlinePtr = req.Deadline
 	}
-
-	memo, err := h.service.CreateMemo(c.Request.Context(), userID.(int), &req)
+	memoReq := &models.CreateMemoRequest{
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     req.Tags,
+		Priority: req.Priority,
+		Deadline: deadlinePtr,
+	}
+	memo, err := h.service.CreateMemo(c.Request.Context(), userID.(int), memoReq)
 	if err != nil {
 		h.logger.WithError(err).Error("メモの作成に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create memo", "details": err.Error()})
@@ -60,7 +84,21 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 	}
 
 	h.logger.WithField("memo_id", memo.ID).WithField("returned_memo_user_id", memo.UserID).Info("メモを作成しました")
-	c.JSON(http.StatusCreated, memo)
+	resp := models.Memo{
+		ID:          memo.ID,
+		UserID:      memo.UserID,
+		Title:       memo.Title,
+		Content:     memo.Content,
+		Category:    memo.Category,
+		Tags:        memo.Tags,
+		Priority:    memo.Priority,
+		Status:      memo.Status,
+		CreatedAt:   memo.CreatedAt,
+		UpdatedAt:   memo.UpdatedAt,
+		CompletedAt: memo.CompletedAt,
+		Deadline:    memo.Deadline,
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // GetMemo retrieves a memo by ID
@@ -88,10 +126,8 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid memo ID"})
 		return
 	}
-
 	memo, err := h.service.GetMemo(c.Request.Context(), userID.(int), id)
 	if err != nil {
-		h.logger.WithError(err).WithField("memo_id", id).Error("メモの取得に失敗")
 		if err.Error() == "memo not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Memo not found"})
 			return
@@ -100,7 +136,22 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, memo)
+	// domain.Memo -> models.Memo 変換
+	resp := models.Memo{
+		ID:          memo.ID,
+		UserID:      memo.UserID,
+		Title:       memo.Title,
+		Content:     memo.Content,
+		Category:    memo.Category,
+		Tags:        memo.Tags,
+		Priority:    string(memo.Priority),
+		Status:      string(memo.Status),
+		CreatedAt:   memo.CreatedAt,
+		UpdatedAt:   memo.UpdatedAt,
+		CompletedAt: memo.CompletedAt,
+		Deadline:    memo.Deadline,
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ListMemos retrieves memos with filtering
@@ -128,21 +179,68 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 		return
 	}
 
-	var filter models.MemoFilter
-	if err := c.ShouldBindQuery(&filter); err != nil {
+	var req models.MemoFilter
+	if err := c.ShouldBindQuery(&req); err != nil {
 		h.logger.WithError(err).Error("クエリパラメータのバインドに失敗")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters", "details": err.Error()})
 		return
 	}
-
-	result, err := h.service.ListMemos(c.Request.Context(), userID.(int), &filter)
+	if v := c.Query("deadline_from"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err == nil {
+			req.DeadlineFrom = &t
+		}
+	}
+	if v := c.Query("deadline_to"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err == nil {
+			req.DeadlineTo = &t
+		}
+	}
+	// models.MemoFilter -> domain.MemoFilter 変換
+	domainFilter := domain.MemoFilter{
+		Category:     req.Category,
+		Status:       domain.Status(req.Status),
+		Priority:     domain.Priority(req.Priority),
+		Search:       req.Search,
+		Tags:         req.Tags,
+		Page:         req.Page,
+		Limit:        req.Limit,
+		DeadlineFrom: req.DeadlineFrom,
+		DeadlineTo:   req.DeadlineTo,
+	}
+	memos, total, err := h.service.ListMemos(c.Request.Context(), userID.(int), domainFilter)
 	if err != nil {
 		h.logger.WithError(err).Error("メモリストの取得に失敗")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list memos", "details": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, result)
+	// domain.Memo -> models.Memo 変換
+	memosResp := make([]models.Memo, 0, len(memos))
+	for _, m := range memos {
+		memosResp = append(memosResp, models.Memo{
+			ID:          m.ID,
+			UserID:      m.UserID,
+			Title:       m.Title,
+			Content:     m.Content,
+			Category:    m.Category,
+			Tags:        m.Tags,
+			Priority:    string(m.Priority),
+			Status:      string(m.Status),
+			CreatedAt:   m.CreatedAt,
+			UpdatedAt:   m.UpdatedAt,
+			CompletedAt: m.CompletedAt,
+			Deadline:    m.Deadline,
+		})
+	}
+	resp := models.MemoListResponse{
+		Memos:      memosResp,
+		Total:      total,
+		Page:       req.Page,
+		Limit:      req.Limit,
+		TotalPages: (total + req.Limit - 1) / req.Limit,
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // UpdateMemo updates a memo
@@ -179,7 +277,13 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format", "details": err.Error()})
 		return
 	}
-
+	// deadlineがstringで渡された場合はRFC3339でパース
+	if deadlineStr, ok := c.GetPostForm("deadline"); ok && deadlineStr != "" {
+		t, err := time.Parse(time.RFC3339, deadlineStr)
+		if err == nil {
+			req.Deadline = &t
+		}
+	}
 	memo, err := h.service.UpdateMemo(c.Request.Context(), userID.(int), id, &req)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの更新に失敗")
