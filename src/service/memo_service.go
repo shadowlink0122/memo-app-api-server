@@ -4,21 +4,23 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"memo-app/src/domain"
 	"memo-app/src/models"
-	"memo-app/src/repository"
+	"memo-app/src/usecase"
 
 	"github.com/sirupsen/logrus"
 )
 
 // MemoService represents the memo service
 type MemoService struct {
-	repo   repository.MemoRepositoryInterface
+	repo   domain.MemoRepository
 	logger *logrus.Logger
 }
 
 // NewMemoService creates a new memo service
-func NewMemoService(repo repository.MemoRepositoryInterface, logger *logrus.Logger) *MemoService {
+func NewMemoService(repo domain.MemoRepository, logger *logrus.Logger) *MemoService {
 	logger.WithField("repo_type", fmt.Sprintf("%T", repo)).Info("MemoService initialized with repository")
 	return &MemoService{
 		repo:   repo,
@@ -26,105 +28,104 @@ func NewMemoService(repo repository.MemoRepositoryInterface, logger *logrus.Logg
 	}
 }
 
-// CreateMemo creates a new memo
-func (s *MemoService) CreateMemo(ctx context.Context, userID int, req *models.CreateMemoRequest) (*models.Memo, error) {
-	// バリデーション
-	if err := s.validateCreateRequest(req); err != nil {
-		return nil, err
-	}
-
-	// デフォルト値の設定
-	if req.Priority == "" {
-		req.Priority = "medium"
-	}
-
-	// タグの正規化
-	req.Tags = s.normalizeTags(req.Tags)
-
-	return s.repo.Create(ctx, userID, req)
-}
-
-// GetMemo retrieves a memo by ID
-func (s *MemoService) GetMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
-	if id <= 0 {
-		return nil, fmt.Errorf("invalid memo ID: %d", id)
-	}
-
-	return s.repo.GetByID(ctx, id, userID)
-}
-
-// ListMemos retrieves memos with filtering
-func (s *MemoService) ListMemos(ctx context.Context, userID int, filter *models.MemoFilter) (*models.MemoListResponse, error) {
-	// フィルターのバリデーションとデフォルト値設定
-	if err := s.validateAndNormalizeFilter(filter); err != nil {
-		return nil, err
-	}
-
-	return s.repo.List(ctx, userID, filter)
-}
-
-// UpdateMemo updates a memo
-func (s *MemoService) UpdateMemo(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
-	if id <= 0 {
-		return nil, fmt.Errorf("invalid memo ID: %d", id)
-	}
-
-	// バリデーション
-	if err := s.validateUpdateRequest(req); err != nil {
-		return nil, err
-	}
-
-	// タグの正規化
-	if req.Tags != nil {
-		normalizedTags := s.normalizeTags(req.Tags)
-		req.Tags = normalizedTags
-	}
-
-	return s.repo.Update(ctx, userID, id, req)
-}
-
 // DeleteMemo deletes a memo
 func (s *MemoService) DeleteMemo(ctx context.Context, userID int, id int) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid memo ID: %d", id)
 	}
-
 	return s.repo.Delete(ctx, userID, id)
 }
 
-// ArchiveMemo archives a memo (sets status to archived)
-func (s *MemoService) ArchiveMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
-	// statusのみを安全に更新する
-	err := s.repo.Archive(ctx, userID, id)
+// CreateMemo creates a new memo
+func (s *MemoService) CreateMemo(ctx context.Context, userID int, req usecase.CreateMemoRequest) (*domain.Memo, error) {
+	memo := &domain.Memo{
+		UserID:   userID,
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     req.Tags,
+		Priority: domain.Priority(req.Priority),
+		Status:   domain.StatusActive,
+	}
+	return s.repo.Create(ctx, memo)
+}
+
+// GetMemo retrieves a memo by ID
+func (s *MemoService) GetMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid memo ID: %d", id)
+	}
+	memo, err := s.repo.GetByID(ctx, id, userID)
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetByID(ctx, id, userID)
+	return memo, nil
+}
+
+// ListMemos retrieves memos with filtering
+func (s *MemoService) ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	memos, total, err := s.repo.List(ctx, userID, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	return memos, total, nil
+}
+
+// DeprecatedUpdateMemo is deprecated and should be removed or refactored
+// func (s *MemoService) UpdateMemo(ctx context.Context, id int, userID int, memo *domain.Memo) (*domain.Memo, error) {
+// 	// This method is deprecated and replaced by the new UpdateMemo method below.
+// 	return nil, fmt.Errorf("DeprecatedUpdateMemo is deprecated, use the new UpdateMemo method")
+// }
+
+// ArchiveMemo archives a memo (sets status to archived)
+func (s *MemoService) ArchiveMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	return s.repo.Archive(ctx, userID, id)
 }
 
 // RestoreMemo restores an archived memo (sets status to active)
-func (s *MemoService) RestoreMemo(ctx context.Context, userID int, id int) (*models.Memo, error) {
-	status := "active"
-	req := &models.UpdateMemoRequest{
-		Status: &status,
-	}
+func (s *MemoService) RestoreMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	return s.repo.Restore(ctx, userID, id)
+}
 
-	return s.UpdateMemo(ctx, userID, id, req)
+// UpdateMemo updates a memo
+func (s *MemoService) UpdateMemo(ctx context.Context, userID int, id int, req usecase.UpdateMemoRequest) (*domain.Memo, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid memo ID: %d", id)
+	}
+	existingMemo, err := s.repo.GetByID(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Title != nil {
+		existingMemo.Title = *req.Title
+	}
+	if req.Content != nil {
+		existingMemo.Content = *req.Content
+	}
+	if req.Category != nil {
+		existingMemo.Category = *req.Category
+	}
+	if len(req.Tags) > 0 {
+		existingMemo.Tags = req.Tags
+	}
+	if req.Priority != nil {
+		existingMemo.Priority = domain.Priority(*req.Priority)
+	}
+	if req.Status != nil {
+		existingMemo.Status = domain.Status(*req.Status)
+	}
+	existingMemo.UpdatedAt = time.Now()
+	return s.repo.Update(ctx, id, userID, existingMemo)
 }
 
 // SearchMemos searches memos by content
-func (s *MemoService) SearchMemos(ctx context.Context, userID int, query string, page, limit int) (*models.MemoListResponse, error) {
-	filter := &models.MemoFilter{
-		Search: strings.TrimSpace(query),
-		Page:   page,
-		Limit:  limit,
+func (s *MemoService) SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	filter.Search = strings.TrimSpace(query)
+	memos, total, err := s.repo.List(ctx, userID, filter)
+	if err != nil {
+		return nil, 0, err
 	}
-
-	if err := s.validateAndNormalizeFilter(filter); err != nil {
-		return nil, err
-	}
-
-	return s.repo.List(ctx, userID, filter)
+	return memos, total, nil
 }
 
 // validateCreateRequest validates the create memo request
@@ -250,4 +251,12 @@ func isValidStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+// PermanentDeleteMemo permanently deletes a memo
+func (s *MemoService) PermanentDeleteMemo(ctx context.Context, userID int, id int) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid memo ID: %d", id)
+	}
+	return s.repo.PermanentDelete(ctx, userID, id)
 }

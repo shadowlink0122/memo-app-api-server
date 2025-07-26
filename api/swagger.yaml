@@ -6,41 +6,6 @@ info:
 
     ## 認証について
 
-    メモAPI（`/api/memos/*`）のエンドポイントには認証が必要です。
-    JWT Bearer認証を使用して、ユーザーの認証と認可を行います。
-
-    **重要**: 各ユーザーは自分のメモのみアクセス可能で、他のユーザーのメモには一切アクセスできません。
-
-    ## 機能
-
-    - ユーザー固有のメモのCRUD操作
-    - カテゴリとタグによる分類
-    - 優先度設定（low/medium/high）
-    - ステータス管理（active/archived）
-    - 段階的削除システム（誤削除防止）
-    - 全文検索機能（ユーザー固有）
-    - ページネーション対応
-
-    ## セキュリティ
-
-    - 全てのメモ操作はユーザー認証が必要
-    - データベースレベルでユーザー分離を実装
-    - 他のユーザーのメモへのアクセスを完全に防止
-
-    ## 削除システム
-
-    メモの削除は2段階で行われます：
-
-    1. **第1段階削除** (`DELETE /api/memos/{id}`)
-       - アクティブメモ → アーカイブに移動
-       - アーカイブメモ → 完全削除
-
-    2. **完全削除** (`DELETE /api/memos/{id}/permanent`)
-       - 即座に完全削除（取り消し不可）
-
-    3. **復元** (`PATCH /api/memos/{id}/restore`)
-       - アーカイブメモ → アクティブに復元
-
   version: 2.0.0
   contact:
     name: Memo App API
@@ -48,29 +13,7 @@ info:
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
-
-servers:
-  - url: http://localhost:8000
-    description: 開発環境サーバー
-  - url: https://your-domain.com
-    description: 本番環境サーバー
-
-tags:
-  - name: Health
-    description: システム状態確認用API
-  - name: Hello
-    description: 基本的なGreeting API
-  - name: Auth
-    description: ユーザー認証API
-  - name: User
-    description: ユーザー管理API（認証必要）
-  - name: Memo
-    description: メモ管理API（認証必要）
-  - name: Protected
-    description: 認証テスト用API
-
 paths:
-  # パブリックAPI
   /:
     get:
       tags:
@@ -138,7 +81,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
   /health:
     get:
       tags:
@@ -152,7 +94,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
-
   /hello:
     get:
       tags:
@@ -167,45 +108,6 @@ paths:
               schema:
                 type: string
                 example: "Hello World!"
-
-  # 認証API
-  /api/auth/register:
-    post:
-      tags:
-        - Auth
-      summary: ローカル認証新規登録
-      description: ID/パスワードによる新規ユーザー登録
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterRequest"
-      responses:
-        "201":
-          description: 登録成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
-          description: 不正なリクエスト
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: ユーザー名またはメールアドレスが既に存在
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: 同一IPからの登録制限に達しました
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/login:
     post:
@@ -591,7 +493,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
     put:
       tags:
         - Memo
@@ -644,14 +545,15 @@ paths:
     delete:
       tags:
         - Memo
-      summary: メモ段階的削除
+      summary: メモ削除（段階的または完全）
       description: |
-        認証されたユーザーが所有する指定IDのメモを段階的に削除します。
+        認証されたユーザーが所有する指定IDのメモを削除します。
+        permanent=true の場合は完全削除、それ以外は段階的削除（アーカイブ→完全削除）となります。
         他のユーザーのメモは削除できません。
 
         **削除動作:**
-        - **アクティブメモ**: アーカイブに移動（復元可能）
-        - **アーカイブ済みメモ**: 完全削除（復元不可）
+        - **permanent=true**: 完全削除（復元不可）
+        - **permanent未指定/false**: アクティブメモはアーカイブ、アーカイブ済みメモは完全削除
 
         この仕組みにより、誤削除を防止できます。
       security:
@@ -664,50 +566,21 @@ paths:
           schema:
             type: integer
             minimum: 1
+        - name: permanent
+          in: query
+          description: 完全削除の場合 true
+          required: false
+          schema:
+            type: boolean
       responses:
         "204":
           description: メモ削除成功（アーカイブまたは完全削除）
-        "404":
-          description: メモが見つかりません
+        "400":
+          description: 不正なリクエスト
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: 認証が必要です
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /api/memos/{id}/permanent:
-    delete:
-      tags:
-        - Memo
-      summary: メモ完全削除
-      description: |
-        認証されたユーザーが所有する指定IDのメモを完全削除します。
-        他のユーザーのメモは削除できません。
-
-        **注意:** この操作は取り消せません。データは完全に失われます。
-
-        **使用場面:**
-        - アーカイブ済みメモの最終削除
-        - 機密データの確実な削除
-        - データベースのクリーンアップ
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          description: メモID
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        "204":
-          description: メモ完全削除成功
         "404":
           description: メモが見つかりません
           content:

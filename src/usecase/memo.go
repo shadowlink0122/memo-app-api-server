@@ -47,8 +47,8 @@ type MemoUsecase interface {
 	UpdateMemo(ctx context.Context, userID int, id int, req UpdateMemoRequest) (*domain.Memo, error)
 	DeleteMemo(ctx context.Context, userID int, id int) error
 	PermanentDeleteMemo(ctx context.Context, userID int, id int) error
-	ArchiveMemo(ctx context.Context, userID int, id int) error
-	RestoreMemo(ctx context.Context, userID int, id int) error
+	ArchiveMemo(ctx context.Context, userID int, id int) (*domain.Memo, error)
+	RestoreMemo(ctx context.Context, userID int, id int) (*domain.Memo, error)
 	SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error)
 }
 
@@ -160,17 +160,38 @@ func (u *memoUsecase) DeleteMemo(ctx context.Context, userID int, id int) error 
 
 // PermanentDeleteMemo permanently deletes a memo from database for a specific user
 func (u *memoUsecase) PermanentDeleteMemo(ctx context.Context, userID int, id int) error {
+	// まずメモの現在のstatusを取得
+	memo, err := u.memoRepo.GetByID(ctx, id, userID)
+	if err != nil {
+		if err == ErrMemoNotFound {
+			return ErrMemoNotFound
+		}
+		return err
+	}
+	if memo.Status != domain.StatusArchived {
+		// archived以外はエラー
+		return ErrInvalidStatus
+	}
+	// archivedなら物理削除
 	return u.memoRepo.PermanentDelete(ctx, id, userID)
 }
 
 // ArchiveMemo archives a memo for a specific user
-func (u *memoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) error {
-	return u.memoRepo.Archive(ctx, id, userID)
+func (u *memoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	memo, err := u.memoRepo.Archive(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	return memo, nil
 }
 
 // RestoreMemo restores an archived memo for a specific user
-func (u *memoUsecase) RestoreMemo(ctx context.Context, userID int, id int) error {
-	return u.memoRepo.Restore(ctx, id, userID)
+func (u *memoUsecase) RestoreMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
+	memo, err := u.memoRepo.Restore(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	return memo, nil
 }
 
 // SearchMemos searches memos for a specific user

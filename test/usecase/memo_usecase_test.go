@@ -51,14 +51,20 @@ func (m *MockMemoRepository) Delete(ctx context.Context, id int, userID int) err
 	return args.Error(0)
 }
 
-func (m *MockMemoRepository) Archive(ctx context.Context, id int, userID int) error {
+func (m *MockMemoRepository) Archive(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	args := m.Called(ctx, id, userID)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) Restore(ctx context.Context, id int, userID int) error {
+func (m *MockMemoRepository) Restore(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	args := m.Called(ctx, id, userID)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
 func (m *MockMemoRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
@@ -294,12 +300,14 @@ func TestMemoUsecase_ArchiveMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			err := uc.ArchiveMemo(context.Background(), 1, tt.memoID)
+			memo, err := uc.ArchiveMemo(context.Background(), 1, tt.memoID)
 
 			if tt.expectedError {
 				assert.Error(t, err)
+				assert.Nil(t, memo)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, memo)
 			}
 
 			mockRepo.AssertExpectations(t)
@@ -339,12 +347,14 @@ func TestMemoUsecase_RestoreMemo(t *testing.T) {
 
 			uc := usecase.NewMemoUsecase(mockRepo)
 
-			err := uc.RestoreMemo(context.Background(), 1, tt.memoID)
+			memo, err := uc.RestoreMemo(context.Background(), 1, tt.memoID)
 
 			if tt.expectedError {
 				assert.Error(t, err)
+				assert.Nil(t, memo)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, memo)
 			}
 
 			mockRepo.AssertExpectations(t)

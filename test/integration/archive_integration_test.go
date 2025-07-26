@@ -161,24 +161,24 @@ func (m *archiveMockRepository) PermanentDelete(ctx context.Context, id int, use
 	return m.DeleteMemo(ctx, userID, id)
 }
 
-func (m *archiveMockRepository) Archive(ctx context.Context, id int, userID int) error {
+func (m *archiveMockRepository) Archive(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	if userMemos, exists := m.userMemos[userID]; exists {
 		if memo, exists := userMemos[id]; exists {
 			memo.Status = "archived"
-			return nil
+			return memo, nil
 		}
 	}
-	return fmt.Errorf("memo not found")
+	return nil, fmt.Errorf("memo not found")
 }
 
-func (m *archiveMockRepository) Restore(ctx context.Context, id int, userID int) error {
+func (m *archiveMockRepository) Restore(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	if userMemos, exists := m.userMemos[userID]; exists {
 		if memo, exists := userMemos[id]; exists {
 			memo.Status = "active"
-			return nil
+			return memo, nil
 		}
 	}
-	return fmt.Errorf("memo not found")
+	return nil, fmt.Errorf("memo not found")
 }
 
 func (m *archiveMockRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
@@ -309,7 +309,7 @@ func (s *ArchiveTestSuite) TestArchiveExclusionFromRegularList() {
 	s.Require().NotNil(archiveMemo)
 
 	// 3. メモをアーカイブ
-	err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
+	_, err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
 	s.Require().NoError(err)
 
 	// 4. 通常のメモ一覧でアーカイブされたメモが表示されないことを確認
@@ -362,7 +362,7 @@ func (s *ArchiveTestSuite) TestArchiveEndpointShowsOnlyArchivedMemos() {
 	s.Require().NoError(err)
 
 	// 3. メモをアーカイブ
-	err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
+	_, err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
 	s.Require().NoError(err)
 
 	// 4. アーカイブエンドポイントでアーカイブされたメモのみが表示されることを確認
@@ -415,7 +415,7 @@ func (s *ArchiveTestSuite) TestSearchIncludesArchivedMemos() {
 	s.Require().NoError(err)
 
 	// 3. メモをアーカイブ
-	err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
+	_, err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
 	s.Require().NoError(err)
 
 	// 4. 検索でアーカイブされたメモも含まれることを確認
@@ -469,7 +469,7 @@ func (s *ArchiveTestSuite) TestSearchWithStatusFilterOnlyArchivedMemos() {
 	s.Require().NoError(err)
 
 	// 3. メモをアーカイブ
-	err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
+	_, err = s.memoUsecase.ArchiveMemo(s.ctx, 1, archiveMemo.ID)
 	s.Require().NoError(err)
 
 	// 4. ステータスフィルターでアーカイブのみを検索
@@ -512,7 +512,7 @@ func (s *ArchiveTestSuite) TestIndividualMemoAccessStillWorks() {
 	s.Require().NoError(err)
 
 	// 2. メモをアーカイブ
-	err = s.memoUsecase.ArchiveMemo(s.ctx, 1, memo.ID)
+	_, err = s.memoUsecase.ArchiveMemo(s.ctx, 1, memo.ID)
 	s.Require().NoError(err)
 
 	// 3. 個別IDでのアクセスは依然として可能であることを確認

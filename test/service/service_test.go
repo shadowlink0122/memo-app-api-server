@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"memo-app/src/domain"
 )
 
 // MockMemoRepository は MemoRepository のモック実装
@@ -17,10 +18,21 @@ type MockMemoRepository struct {
 	mock.Mock
 }
 
+func (m *MockMemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain.Memo, error) {
+	args := m.Called(ctx, memo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
+}
+
 // Archive implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Archive(ctx context.Context, userID int, id int) error {
+func (m *MockMemoRepository) Archive(ctx context.Context, userID int, id int) (*domain.Memo, error) {
 	args := m.Called(ctx, userID, id)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
 // PermanentDelete implements repository.MemoRepositoryInterface.
@@ -30,38 +42,39 @@ func (m *MockMemoRepository) PermanentDelete(ctx context.Context, userID int, id
 }
 
 // Restore implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Restore(ctx context.Context, userID int, id int) error {
+func (m *MockMemoRepository) Restore(ctx context.Context, userID int, id int) (*domain.Memo, error) {
 	args := m.Called(ctx, userID, id)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
 // Search implements repository.MemoRepositoryInterface.
-func (m *MockMemoRepository) Search(ctx context.Context, userID int, query string, filter models.MemoFilter) ([]models.Memo, int, error) {
+func (m *MockMemoRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	args := m.Called(ctx, userID, query, filter)
-	return args.Get(0).([]models.Memo), args.Int(1), args.Error(2)
+	return args.Get(0).([]domain.Memo), args.Int(1), args.Error(2)
 }
 
-func (m *MockMemoRepository) Create(ctx context.Context, userID int, req *models.CreateMemoRequest) (*models.Memo, error) {
-	args := m.Called(ctx, userID, req)
-	return args.Get(0).(*models.Memo), args.Error(1)
-}
-
-func (m *MockMemoRepository) GetByID(ctx context.Context, id int, userID int) (*models.Memo, error) {
+func (m *MockMemoRepository) GetByID(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.Memo), args.Error(1)
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoRepository) List(ctx context.Context, userID int, filter *models.MemoFilter) (*models.MemoListResponse, error) {
+func (m *MockMemoRepository) List(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error) {
 	args := m.Called(ctx, userID, filter)
-	return args.Get(0).(*models.MemoListResponse), args.Error(1)
+	return args.Get(0).([]domain.Memo), args.Int(1), args.Error(2)
 }
 
-func (m *MockMemoRepository) Update(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error) {
-	args := m.Called(ctx, userID, id, req)
-	return args.Get(0).(*models.Memo), args.Error(1)
+func (m *MockMemoRepository) Update(ctx context.Context, userID int, id int, memo *domain.Memo) (*domain.Memo, error) {
+	args := m.Called(ctx, userID, id, memo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
 func (m *MockMemoRepository) Delete(ctx context.Context, userID int, id int) error {

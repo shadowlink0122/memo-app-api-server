@@ -440,23 +440,50 @@ func (h *MemoHandler) DeleteMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.DeleteMemo(c.Request.Context(), userID, id)
-	if err != nil {
-		h.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
-
-		status := http.StatusInternalServerError
-		if err == usecase.ErrMemoNotFound {
-			status = http.StatusNotFound
-		}
-
-		c.JSON(status, ErrorResponseDTO{
-			Error: "Failed to delete memo",
-		})
-		return
+	// permanentクエリパラメータ取得
+	permanent := false
+	if p := c.Query("permanent"); p != "" {
+		permanent = strings.ToLower(p) == "true"
 	}
 
-	h.logger.WithField("memo_id", id).Info("メモを削除しました")
-	c.Status(http.StatusNoContent)
+	if permanent {
+		err = h.memoUsecase.PermanentDeleteMemo(c.Request.Context(), userID, id)
+		if err != nil {
+			h.logger.WithError(err).WithField("memo_id", id).Error("メモの完全削除に失敗")
+			var status int
+			switch err {
+			case usecase.ErrMemoNotFound:
+				status = http.StatusNotFound
+			case usecase.ErrInvalidStatus:
+				status = http.StatusBadRequest
+			default:
+				status = http.StatusInternalServerError
+			}
+			c.JSON(status, ErrorResponseDTO{
+				Error:   "Failed to permanently delete memo",
+				Message: err.Error(),
+			})
+			return
+		}
+		h.logger.WithField("memo_id", id).Info("メモを完全削除しました")
+		c.Status(http.StatusNoContent)
+		return
+	} else {
+		err = h.memoUsecase.DeleteMemo(c.Request.Context(), userID, id)
+		if err != nil {
+			h.logger.WithError(err).WithField("memo_id", id).Error("メモの削除に失敗")
+			status := http.StatusInternalServerError
+			if err == usecase.ErrMemoNotFound {
+				status = http.StatusNotFound
+			}
+			c.JSON(status, ErrorResponseDTO{
+				Error: "Failed to delete memo",
+			})
+			return
+		}
+		h.logger.WithField("memo_id", id).Info("メモを削除しました")
+		c.Status(http.StatusNoContent)
+	}
 }
 
 // PermanentDeleteMemo permanently deletes a memo from database
@@ -526,7 +553,7 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.ArchiveMemo(c.Request.Context(), userID, id)
+	_, err = h.memoUsecase.ArchiveMemo(c.Request.Context(), userID, id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモのアーカイブに失敗")
 
@@ -569,7 +596,7 @@ func (h *MemoHandler) RestoreMemo(c *gin.Context) {
 		return
 	}
 
-	err = h.memoUsecase.RestoreMemo(c.Request.Context(), userID, id)
+	_, err = h.memoUsecase.RestoreMemo(c.Request.Context(), userID, id)
 	if err != nil {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの復元に失敗")
 

@@ -69,14 +69,20 @@ func (m *MockMemoUsecase) DeleteMemo(ctx context.Context, userID int, id int) er
 	return args.Error(0)
 }
 
-func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) error {
+func (m *MockMemoUsecase) ArchiveMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
 	args := m.Called(ctx, userID, id)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
-func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, userID int, id int) error {
+func (m *MockMemoUsecase) RestoreMemo(ctx context.Context, userID int, id int) (*domain.Memo, error) {
 	args := m.Called(ctx, userID, id)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memo), args.Error(1)
 }
 
 func (m *MockMemoUsecase) SearchMemos(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {

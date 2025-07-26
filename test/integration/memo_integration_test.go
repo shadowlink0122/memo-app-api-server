@@ -251,34 +251,35 @@ func (m *memoIntegrationMockRepository) PermanentDelete(ctx context.Context, id 
 	return nil
 }
 
-func (m *memoIntegrationMockRepository) Archive(ctx context.Context, id int, userID int) error {
+func (m *memoIntegrationMockRepository) Archive(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	memos := m.getUserMemos(userID)
 	memo, exists := memos[id]
 	if !exists {
-		return usecase.ErrMemoNotFound
+		return nil, usecase.ErrMemoNotFound
 	}
 	memo.Status = domain.StatusArchived
 	memo.UpdatedAt = time.Now()
 	completedAt := time.Now()
 	memo.CompletedAt = &completedAt
-	return nil
+	return memo, nil
 }
 
-func (m *memoIntegrationMockRepository) Restore(ctx context.Context, id int, userID int) error {
+func (m *memoIntegrationMockRepository) Restore(ctx context.Context, id int, userID int) (*domain.Memo, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	memos := m.getUserMemos(userID)
 	memo, exists := memos[id]
 	if !exists {
-		return usecase.ErrMemoNotFound
+		return nil, usecase.ErrMemoNotFound
 	}
 	memo.Status = domain.StatusActive
 	memo.UpdatedAt = time.Now()
-	return nil
+	memo.CompletedAt = nil
+	return memo, nil
 }
 
 func (m *memoIntegrationMockRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {

@@ -10,7 +10,7 @@ type MemoRepository interface {
 	Update(ctx context.Context, id int, userID int, memo *Memo) (*Memo, error)
 	Delete(ctx context.Context, id int, userID int) error
 	PermanentDelete(ctx context.Context, id int, userID int) error
-	Archive(ctx context.Context, id int, userID int) error
-	Restore(ctx context.Context, id int, userID int) error
+	Archive(ctx context.Context, id int, userID int) (*Memo, error)
+	Restore(ctx context.Context, id int, userID int) (*Memo, error)
 	Search(ctx context.Context, userID int, query string, filter MemoFilter) ([]Memo, int, error)
 }

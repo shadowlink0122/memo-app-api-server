@@ -14,6 +14,7 @@ import (
 	"memo-app/src/database"
 	"memo-app/src/handlers"
 	infraRepo "memo-app/src/infrastructure/repository"
+	"memo-app/src/interface/handler"
 	"memo-app/src/logger"
 	"memo-app/src/middleware"
 	userRepo "memo-app/src/repository"
@@ -64,7 +65,7 @@ func main() {
 	// リポジトリ、サービス、ハンドラーを初期化
 	memoRepo := infraRepo.NewMemoRepository(db, logger.Log)
 	memoService := service.NewMemoService(memoRepo, logger.Log)
-	memoHandler := handlers.NewMemoHandler(memoService, logger.Log)
+	memoHandler := handler.NewMemoHandler(memoService, logger.Log)
 
 	// 認証関連のコンポーネントを初期化
 	userRepository := userRepo.NewUserRepository(db.DB)
@@ -204,6 +205,8 @@ func main() {
 
 	// メモAPIのルートを設定
 	routes.SetupRoutes(r, memoHandler, authHandler, jwtService, userRepository)
+	// Ginのルート一覧を出力
+	// panic(fmt.Sprintf("[ROUTE] 登録数: %d\n%v", len(r.Routes()), r.Routes()))
 
 	// グレースフルシャットダウンの設定
 	go func() {
@@ -229,6 +232,7 @@ func main() {
 	serverAddr := ":" + cfg.Server.Port
 	logger.Log.WithField("port", cfg.Server.Port).Info("サーバーを開始します")
 
+	logger.Log.Infof("[ROUTE] 全体: %+v", r.Routes())
 	if err := r.Run(serverAddr); err != nil {
 		logger.Log.WithError(err).Fatal("サーバーの起動に失敗")
 	}
