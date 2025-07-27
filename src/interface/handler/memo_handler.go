@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"memo-app/src/domain"
+	"memo-app/src/models"
 	"memo-app/src/usecase"
 	"memo-app/src/validator"
 
@@ -32,76 +33,51 @@ func NewMemoHandler(memoUsecase usecase.MemoUsecase, logger *logrus.Logger) *Mem
 
 // CreateMemo creates a new memo
 func (h *MemoHandler) CreateMemo(c *gin.Context) {
-	// 認証されたユーザーIDを取得
-	userID, err := h.getUserIDFromContext(c)
-	if err != nil {
-		h.logger.WithError(err).Error("ユーザーIDの取得に失敗")
-		c.JSON(http.StatusUnauthorized, ErrorResponseDTO{
-			Error:   "Unauthorized",
-			Message: "User authentication required",
-		})
-		return
-	}
-
-	var req CreateMemoRequestDTO
+	var req models.CreateMemoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("リクエストのバインドに失敗")
-		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
-			Error:   "Invalid request format",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format", "details": err.Error()})
 		return
 	}
-
-	// カスタムバリデーション実行
-	if err := h.validator.Validate(&req); err != nil {
-		h.logger.WithError(err).Error("バリデーションエラー")
-		if validationErrors, ok := err.(validator.ValidationErrors); ok {
-			c.JSON(http.StatusBadRequest, validationErrors)
-			return
-		}
-		c.JSON(http.StatusBadRequest, ErrorResponseDTO{
-			Error:   "Validation failed",
-			Message: err.Error(),
-		})
+	h.logger.WithField("deadline", req.Deadline).Info("deadlineを確認しました")
+	// コンテキストからユーザーIDを取得
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Error("ユーザーIDがコンテキストに設定されていません")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-
-	// 入力値のサニタイゼーション
-	sanitizedReq := CreateMemoRequestDTO{
-		Title:    h.validator.SanitizeInput(req.Title),
-		Content:  h.validator.SanitizeContent(req.Content), // コンテンツ専用サニタイゼーション
-		Category: h.validator.SanitizeInput(req.Category),
-		Tags:     h.validator.SanitizeTags(req.Tags),
-		Priority: req.Priority, // 列挙値なのでサニタイズ不要
-	}
-
 	usecaseReq := usecase.CreateMemoRequest{
-		Title:    sanitizedReq.Title,
-		Content:  sanitizedReq.Content,
-		Category: sanitizedReq.Category,
-		Tags:     sanitizedReq.Tags,
-		Priority: sanitizedReq.Priority,
+		Title:    req.Title,
+		Content:  req.Content,
+		Category: req.Category,
+		Tags:     req.Tags,
+		Priority: req.Priority,
+		Deadline: req.Deadline,
 	}
-
-	memo, err := h.memoUsecase.CreateMemo(c.Request.Context(), userID, usecaseReq)
+	memo, err := h.memoUsecase.CreateMemo(c.Request.Context(), userID.(int), usecaseReq)
 	if err != nil {
 		h.logger.WithError(err).Error("メモの作成に失敗")
-
-		status := http.StatusInternalServerError
-		if err == usecase.ErrInvalidTitle || err == usecase.ErrInvalidContent || err == usecase.ErrInvalidPriority {
-			status = http.StatusBadRequest
-		}
-
-		c.JSON(status, ErrorResponseDTO{
-			Error:   "Failed to create memo",
-			Message: err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create memo", "details": err.Error()})
 		return
 	}
 
-	h.logger.WithField("memo_id", memo.ID).WithField("user_id", userID).Info("メモを作成しました")
-	c.JSON(http.StatusCreated, h.toMemoResponseDTO(memo))
+	h.logger.WithField("memo_id", memo.ID).WithField("returned_memo_user_id", memo.UserID).Info("メモを作成しました")
+	resp := models.Memo{
+		ID:          memo.ID,
+		UserID:      memo.UserID,
+		Title:       memo.Title,
+		Content:     memo.Content,
+		Category:    memo.Category,
+		Tags:        memo.Tags,
+		Priority:    string(memo.Priority),
+		Status:      string(memo.Status),
+		CreatedAt:   memo.CreatedAt,
+		UpdatedAt:   memo.UpdatedAt,
+		CompletedAt: memo.CompletedAt,
+		Deadline:    memo.Deadline,
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // GetMemo retrieves a memo by ID
@@ -391,6 +367,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		Tags:     sanitizedReq.Tags,
 		Priority: sanitizedReq.Priority,
 		Status:   sanitizedReq.Status,
+		Deadline: req.Deadline,
 	}
 
 	memo, err := h.memoUsecase.UpdateMemo(c.Request.Context(), userID, id, usecaseReq)
@@ -398,10 +375,10 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 		h.logger.WithError(err).WithField("memo_id", id).Error("メモの更新に失敗")
 
 		status := http.StatusInternalServerError
-		if err == usecase.ErrMemoNotFound {
+		switch err {
+		case usecase.ErrMemoNotFound:
 			status = http.StatusNotFound
-		} else if err == usecase.ErrInvalidTitle || err == usecase.ErrInvalidContent ||
-			err == usecase.ErrInvalidPriority || err == usecase.ErrInvalidStatus {
+		case usecase.ErrInvalidTitle, usecase.ErrInvalidContent, usecase.ErrInvalidPriority, usecase.ErrInvalidStatus:
 			status = http.StatusBadRequest
 		}
 
@@ -698,6 +675,7 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 // Helper methods for conversion
 
 func (h *MemoHandler) toMemoResponseDTO(memo *domain.Memo) MemoResponseDTO {
+	h.logger.WithField("deadline", memo.Deadline).Info("toMemoResponseDTO: deadlineを確認しました")
 	return MemoResponseDTO{
 		ID:          memo.ID,
 		Title:       memo.Title,
@@ -709,6 +687,7 @@ func (h *MemoHandler) toMemoResponseDTO(memo *domain.Memo) MemoResponseDTO {
 		CreatedAt:   memo.CreatedAt,
 		UpdatedAt:   memo.UpdatedAt,
 		CompletedAt: memo.CompletedAt,
+		Deadline:    memo.Deadline,
 	}
 }
 
@@ -730,13 +709,15 @@ func (h *MemoHandler) toDomainFilter(dto MemoFilterDTO) domain.MemoFilter {
 	}
 
 	return domain.MemoFilter{
-		Category: dto.Category,
-		Status:   domain.Status(dto.Status),
-		Priority: domain.Priority(dto.Priority),
-		Search:   dto.Search,
-		Tags:     tags,
-		Page:     dto.Page,
-		Limit:    dto.Limit,
+		Category:     dto.Category,
+		Status:       domain.Status(dto.Status),
+		Priority:     domain.Priority(dto.Priority),
+		Search:       dto.Search,
+		Tags:         tags,
+		Page:         dto.Page,
+		Limit:        dto.Limit,
+		DeadlineFrom: dto.DeadlineFrom,
+		DeadlineTo:   dto.DeadlineTo,
 	}
 }
 

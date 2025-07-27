@@ -47,7 +47,6 @@ func (s *MemoService) CreateMemo(ctx context.Context, userID int, req usecase.Cr
 		Category: req.Category,
 		Tags:     req.Tags,
 		Priority: req.Priority,
-		Deadline: req.Deadline, // ここでDeadlineを渡す
 	}
 	if err := s.validateCreateRequest(modelReq); err != nil {
 		return nil, err

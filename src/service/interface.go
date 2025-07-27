@@ -4,11 +4,12 @@ import (
 	"context"
 	"memo-app/src/domain"
 	"memo-app/src/models"
+	"memo-app/src/usecase"
 )
 
 // MemoServiceInterface defines the interface for memo service
 type MemoServiceInterface interface {
-	CreateMemo(ctx context.Context, userID int, req *models.CreateMemoRequest) (*models.Memo, error)
+	CreateMemo(ctx context.Context, userID int, req usecase.CreateMemoRequest) (*domain.Memo, error)
 	GetMemo(ctx context.Context, userID int, id int) (*models.Memo, error)
 	ListMemos(ctx context.Context, userID int, filter domain.MemoFilter) ([]domain.Memo, int, error)
 	UpdateMemo(ctx context.Context, userID int, id int, req *models.UpdateMemoRequest) (*models.Memo, error)

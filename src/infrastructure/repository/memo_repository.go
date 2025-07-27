@@ -33,8 +33,12 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 		return nil, fmt.Errorf("failed to marshal tags: %w", err)
 	}
 	now := time.Now()
-	r.logger.WithField("deadline", memo.Deadline).Info("CreateMemo: deadline value before DB insert")
-	fmt.Printf("[DEBUG] CreateMemo: deadline=%v\n", memo.Deadline)
+	r.logger.WithField("deadline", memo.Deadline).Info("[DEBUG] CreateMemo: deadline value before DB insert")
+	if memo.Deadline == nil {
+		fmt.Println("[DEBUG] memo.Deadline is nil")
+	} else {
+		fmt.Printf("[DEBUG] memo.Deadline value: %v\n", memo.Deadline)
+	}
 	query := `
 		INSERT INTO memos (user_id, title, content, category, tags, priority, status, deadline, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -42,7 +46,7 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 	var id int
 	err = r.db.QueryRowContext(ctx, query,
 		memo.UserID, memo.Title, memo.Content, memo.Category, string(tagsJSON),
-		memo.Priority, memo.Status, memo.Deadline, now, now,
+		string(memo.Priority), string(memo.Status), memo.Deadline, now, now,
 	).Scan(&id)
 	if err != nil {
 		r.logger.WithError(err).Error("メモの作成に失敗")
@@ -52,7 +56,12 @@ func (r *MemoRepository) Create(ctx context.Context, memo *domain.Memo) (*domain
 	memo.CreatedAt = now
 	memo.UpdatedAt = now
 	r.logger.WithField("memo_id", id).WithField("user_id", memo.UserID).Info("メモを作成しました")
-	return memo, nil
+	// DBから取得し直して正しい値（特にDeadline）を返す
+	createdMemo, err := r.GetByID(ctx, id, memo.UserID)
+	if err != nil {
+		return memo, nil // 取得失敗時は元のmemoを返す
+	}
+	return createdMemo, nil
 }
 
 // GetByID retrieves a memo by ID for a specific user
@@ -77,7 +86,6 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*doma
 		return nil, fmt.Errorf("failed to get memo: %w", err)
 	}
 	if tagsStr.Valid {
-		// domain.Memo.Tags は []string 型
 		var tags []string
 		_ = json.Unmarshal([]byte(tagsStr.String), &tags)
 		memo.Tags = tags
@@ -85,8 +93,11 @@ func (r *MemoRepository) GetByID(ctx context.Context, id int, userID int) (*doma
 	if completedAt.Valid {
 		memo.CompletedAt = &completedAt.Time
 	}
+	// deadlineカラムの値を必ずセット（nullならnil、値があればtime.Time）
 	if deadline.Valid {
 		memo.Deadline = &deadline.Time
+	} else {
+		memo.Deadline = nil
 	}
 	return &memo, nil
 }
@@ -125,17 +136,8 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		query += fmt.Sprintf(" AND deadline <= $%d", argCount)
 		args = append(args, *filter.DeadlineTo)
 	}
-	// 締切指定がない場合は期限が近い順（期限切れ3日超は除外）
-	if filter.DeadlineFrom == nil && filter.DeadlineTo == nil {
-		now := time.Now()
-		threeDaysAgo := now.Add(-72 * time.Hour)
-		argCount++
-		query += fmt.Sprintf(" AND (deadline IS NULL OR deadline >= $%d)", argCount)
-		args = append(args, threeDaysAgo)
-		query += " ORDER BY deadline ASC NULLS LAST"
-	} else {
-		query += " ORDER BY deadline ASC NULLS LAST"
-	}
+	// 更新日が最新順で返す
+	query += " ORDER BY updated_at DESC"
 	if filter.Limit > 0 {
 		argCount++
 		query += fmt.Sprintf(" LIMIT $%d", argCount)

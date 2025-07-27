@@ -22,11 +22,11 @@ type Memo struct {
 
 // CreateMemoRequest represents the request payload for creating a memo
 type CreateMemoRequest struct {
-	Title    string     `json:"title" binding:"required,max=200"`
-	Content  string     `json:"content" binding:"required"`
-	Category string     `json:"category" binding:"max=50"`
+	Title    string     `json:"title"`
+	Content  string     `json:"content"`
+	Category string     `json:"category"`
 	Tags     []string   `json:"tags"`
-	Priority string     `json:"priority" binding:"oneof=low medium high"`
+	Priority string     `json:"priority"`
 	Deadline *time.Time `json:"deadline"`
 }
 
