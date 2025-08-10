@@ -136,6 +136,15 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		query += fmt.Sprintf(" AND deadline <= $%d", argCount)
 		args = append(args, *filter.DeadlineTo)
 	}
+	// タグフィルタ
+	if len(filter.Tags) > 0 {
+		for _, tag := range filter.Tags {
+			argCount++
+			query += fmt.Sprintf(" AND tags::jsonb @> $%d", argCount)
+			tagJSON, _ := json.Marshal([]string{tag})
+			args = append(args, string(tagJSON))
+		}
+	}
 	// 更新日が最新順で返す
 	query += " ORDER BY updated_at DESC"
 	if filter.Limit > 0 {
@@ -197,6 +206,13 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 	if filter.Priority != "" {
 		countQuery += " AND priority = $" + fmt.Sprintf("%d", len(countArgs)+1)
 		countArgs = append(countArgs, filter.Priority)
+	}
+	if len(filter.Tags) > 0 {
+		for _, tag := range filter.Tags {
+			countQuery += " AND tags::jsonb @> $" + fmt.Sprintf("%d", len(countArgs)+1)
+			tagJSON, _ := json.Marshal([]string{tag})
+			countArgs = append(countArgs, string(tagJSON))
+		}
 	}
 	var total int
 	err = r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total)
@@ -442,6 +458,14 @@ func (r *MemoRepository) Search(ctx context.Context, userID int, query string, f
 		searchQuery += fmt.Sprintf(" AND priority = $%d", argCount)
 		args = append(args, filter.Priority)
 	}
+	if len(filter.Tags) > 0 {
+		for _, tag := range filter.Tags {
+			argCount++
+			searchQuery += fmt.Sprintf(" AND tags::jsonb @> $%d", argCount)
+			tagJSON, _ := json.Marshal([]string{tag})
+			args = append(args, string(tagJSON))
+		}
+	}
 	if filter.Limit > 0 {
 		argCount++
 		searchQuery += fmt.Sprintf(" LIMIT $%d", argCount)
@@ -497,6 +521,13 @@ func (r *MemoRepository) Search(ctx context.Context, userID int, query string, f
 	if filter.Priority != "" {
 		countQuery += " AND priority = $" + fmt.Sprintf("%d", len(countArgs)+1)
 		countArgs = append(countArgs, filter.Priority)
+	}
+	if len(filter.Tags) > 0 {
+		for _, tag := range filter.Tags {
+			countQuery += " AND tags::jsonb @> $" + fmt.Sprintf("%d", len(countArgs)+1)
+			tagJSON, _ := json.Marshal([]string{tag})
+			countArgs = append(countArgs, string(tagJSON))
+		}
 	}
 	var total int
 	err = r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total)
