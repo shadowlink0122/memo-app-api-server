@@ -55,7 +55,7 @@ func TestMemoFilter_DefaultValues(t *testing.T) {
 	assert.Equal(t, "", filter.Status)
 	assert.Equal(t, "", filter.Priority)
 	assert.Equal(t, "", filter.Search)
-	assert.Equal(t, "", filter.Tags)
+	assert.Equal(t, []string(nil), filter.Tags)
 }
 
 func TestMemoListResponse_Structure(t *testing.T) {

@@ -79,6 +79,33 @@ func ensureMigrationsApplied(t *testing.T, db *sql.DB) error {
 	return nil
 }
 
+// テスト用データベースセットアップ
+func setupTestDatabase(t *testing.T) {
+	// DB作成（psqlコマンドでなくGoから直接）
+	dsn := getTestDSN(t)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatalf("DB接続失敗: %v", err)
+	}
+	defer db.Close()
+
+	// users, memosテーブル作成
+	schemaSQL, err := os.ReadFile("../../migrations/001_initial_schema.up.sql")
+	if err != nil {
+		t.Fatalf("スキーマSQL読み込み失敗: %v", err)
+	}
+	_, err = db.Exec(string(schemaSQL))
+	if err != nil {
+		t.Fatalf("スキーマSQL実行失敗: %v", err)
+	}
+}
+
+// テストのセットアップ
+func TestMain(m *testing.M) {
+	setupTestDatabase(&testing.T{})
+	os.Exit(m.Run())
+}
+
 // データベース接続のテスト
 func TestDatabaseConnection(t *testing.T) {
 	// テスト用のデータベース接続文字列を取得

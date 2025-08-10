@@ -130,6 +130,25 @@ func (suite *E2ETestSuite) TestSetup(t *testing.T) {
 
 	require.NoError(t, err, "データベース接続に失敗")
 	require.NotNil(t, suite.db, "データベース接続が確立されていません")
+
+	// DB作成・マイグレーション
+	var dbHost, dbUser, dbName string
+	if os.Getenv("DOCKER_CONTAINER") == "true" {
+		dbHost = "db-test"
+	} else {
+		dbHost = "localhost"
+	}
+	dbUser = "memo_user"
+	dbName = "memo_db_test"
+
+	cmd1 := exec.Command("psql", "-U", dbUser, "-h", dbHost, "-f", "../migrations/000_create_test_db.sql")
+	if err := cmd1.Run(); err != nil {
+		t.Skipf("psql DB作成失敗: %v", err)
+	}
+	cmd2 := exec.Command("psql", "-U", dbUser, "-h", dbHost, "-d", dbName, "-f", "../migrations/001_initial_schema.up.sql")
+	if err := cmd2.Run(); err != nil {
+		t.Skipf("psql マイグレーション失敗: %v", err)
+	}
 }
 
 // データベース統合テスト
