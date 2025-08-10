@@ -63,10 +63,11 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 	}
 
 	h.logger.WithField("memo_id", memo.ID).WithField("returned_memo_user_id", memo.UserID).Info("メモを作成しました")
+	sanitizedTitle := h.validator.SanitizeContent(memo.Title)
 	resp := models.Memo{
 		ID:          memo.ID,
 		UserID:      memo.UserID,
-		Title:       memo.Title,
+		Title:       sanitizedTitle,
 		Content:     memo.Content,
 		Category:    memo.Category,
 		Tags:        memo.Tags,
@@ -77,7 +78,7 @@ func (h *MemoHandler) CreateMemo(c *gin.Context) {
 		CompletedAt: memo.CompletedAt,
 		Deadline:    memo.Deadline,
 	}
-	c.JSON(http.StatusCreated, resp)
+	c.Render(http.StatusCreated, NoEscapeJSON{Data: resp})
 }
 
 // GetMemo retrieves a memo by ID
@@ -119,7 +120,7 @@ func (h *MemoHandler) GetMemo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, h.toMemoResponseDTO(memo))
+	c.Render(http.StatusOK, NoEscapeJSON{Data: h.toMemoResponseDTO(memo)})
 }
 
 // ListMemos retrieves memos with filtering
@@ -208,7 +209,7 @@ func (h *MemoHandler) ListMemos(c *gin.Context) {
 	c.Header("X-Total-Pages", fmt.Sprintf("%d", (total+filter.Limit-1)/filter.Limit))
 	c.Header("Content-Type", "application/json; charset=utf-8")
 
-	c.JSON(http.StatusOK, response)
+	c.Render(http.StatusOK, NoEscapeJSON{Data: response})
 }
 
 // ListArchivedMemos retrieves archived memos with filtering
@@ -287,7 +288,7 @@ func (h *MemoHandler) ListArchivedMemos(c *gin.Context) {
 		TotalPages: (total + filter.Limit - 1) / filter.Limit,
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.Render(http.StatusOK, NoEscapeJSON{Data: response})
 }
 
 // UpdateMemo updates an existing memo
@@ -345,7 +346,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 	}
 
 	if req.Title != nil {
-		sanitized := h.validator.SanitizeInput(*req.Title)
+		sanitized := h.validator.SanitizeContent(*req.Title)
 		sanitizedReq.Title = &sanitized
 	}
 	if req.Content != nil {
@@ -390,7 +391,7 @@ func (h *MemoHandler) UpdateMemo(c *gin.Context) {
 	}
 
 	h.logger.WithField("memo_id", id).Info("メモを更新しました")
-	c.JSON(http.StatusOK, h.toMemoResponseDTO(memo))
+	c.Render(http.StatusOK, NoEscapeJSON{Data: h.toMemoResponseDTO(memo)})
 }
 
 // DeleteMemo deletes a memo (archives active memos, permanently deletes archived ones)
@@ -546,7 +547,12 @@ func (h *MemoHandler) ArchiveMemo(c *gin.Context) {
 	}
 
 	h.logger.WithField("memo_id", id).Info("メモをアーカイブしました")
-	c.Status(http.StatusNoContent)
+	memo, err := h.memoUsecase.GetMemo(c.Request.Context(), userID, id)
+	if err != nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	c.Render(http.StatusOK, NoEscapeJSON{Data: h.toMemoResponseDTO(memo)})
 }
 
 // RestoreMemo restores an archived memo
@@ -676,9 +682,10 @@ func (h *MemoHandler) SearchMemos(c *gin.Context) {
 
 func (h *MemoHandler) toMemoResponseDTO(memo *domain.Memo) MemoResponseDTO {
 	h.logger.WithField("deadline", memo.Deadline).Info("toMemoResponseDTO: deadlineを確認しました")
+	sanitizedTitle := h.validator.SanitizeContent(memo.Title)
 	return MemoResponseDTO{
 		ID:          memo.ID,
-		Title:       memo.Title,
+		Title:       sanitizedTitle,
 		Content:     memo.Content,
 		Category:    memo.Category,
 		Tags:        memo.Tags,
