@@ -110,6 +110,12 @@ func (r *MemoRepository) List(ctx context.Context, userID int, filter domain.Mem
 		WHERE user_id = $1`
 	args := []interface{}{userID}
 	argCount := 1
+	// searchパラメータが指定されている場合はタイトルまたは内容で部分一致
+	if filter.Search != "" {
+		argCount++
+		query += fmt.Sprintf(" AND (title ILIKE $%d OR content ILIKE $%d)", argCount, argCount)
+		args = append(args, "%"+filter.Search+"%")
+	}
 	if filter.Status != "" {
 		argCount++
 		query += fmt.Sprintf(" AND status = $%d", argCount)
@@ -438,6 +444,7 @@ func (r *MemoRepository) Restore(ctx context.Context, userID int, id int) (*doma
 
 // Search searches for memos (domain interface)
 func (r *MemoRepository) Search(ctx context.Context, userID int, query string, filter domain.MemoFilter) ([]domain.Memo, int, error) {
+	r.logger.WithField("search_query_param", query).Info("[DEBUG] Search: search param value before SQL execution")
 	searchQuery := `SELECT id, user_id, title, content, category, tags, priority, status, created_at, updated_at, completed_at
 		FROM memos 
 		WHERE user_id = $1 AND (title ILIKE $2 OR content ILIKE $2)`
