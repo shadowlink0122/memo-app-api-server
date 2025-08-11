@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"memo-app/src/logger"
 	"memo-app/src/repository"
 	"memo-app/src/service"
@@ -42,6 +43,14 @@ func AuthMiddleware(jwtService service.JWTService, userRepo repository.UserRepos
 		if token == "" {
 			logger.WithField("client_ip", c.ClientIP()).Warn("認証失敗: tokenが空です")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is empty"})
+			c.Abort()
+			return
+		}
+
+		// トークンが無効化されているかチェック
+		if jwtService.IsTokenInvalidated(token) {
+			logger.WithField("client_ip", c.ClientIP()).Warn("認証失敗: トークンが無効化されています")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been invalidated"})
 			c.Abort()
 			return
 		}
@@ -92,6 +101,11 @@ func AuthMiddleware(jwtService service.JWTService, userRepo repository.UserRepos
 			"user_id":   userID,
 			"username":  user.Username,
 		}).Info("認証成功")
+
+		// 確実に表示されるエラーレベルログ
+		logger.WithField("debug_user_id", userID).Error("=== MIDDLEWARE: Context user_id set ===")
+		fmt.Printf("=== MIDDLEWARE: userID %d set in context ===\n", userID)
+
 		c.Next()
 	}
 }

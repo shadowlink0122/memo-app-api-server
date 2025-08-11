@@ -6,16 +6,18 @@ import (
 
 // Memo represents a memo domain entity
 type Memo struct {
-	ID          int
-	Title       string
-	Content     string
-	Category    string
-	Tags        []string
-	Priority    Priority
-	Status      Status
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	CompletedAt *time.Time
+	ID          int        `json:"id"`
+	UserID      int        `json:"user_id"`
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Category    string     `json:"category"`
+	Tags        []string   `json:"tags"`
+	Priority    Priority   `json:"priority"`
+	Status      Status     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	CompletedAt *time.Time `json:"completed_at"`
+	Deadline    *time.Time `json:"deadline"` // 必須の締切
 }
 
 // Priority represents memo priority levels
@@ -37,13 +39,15 @@ const (
 
 // MemoFilter represents filter criteria for memo queries
 type MemoFilter struct {
-	Category string
-	Status   Status
-	Priority Priority
-	Search   string
-	Tags     []string
-	Page     int
-	Limit    int
+	Category     string
+	Status       Status
+	Priority     Priority
+	Search       string
+	Tags         []string
+	Page         int
+	Limit        int
+	DeadlineFrom *time.Time
+	DeadlineTo   *time.Time
 }
 
 // IsValid validates if the priority is valid

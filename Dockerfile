@@ -1,5 +1,24 @@
-# ローカルビルド対応のDockerfile
-# 事前にローカルでビルドされたバイナリを使用して実行環境を構築
+# マルチステージビルド対応のDockerfile
+# 自動ビルドからローカルビルドまで対応
+
+# ビルドステージ
+FROM golang:1.24.5-alpine AS builder
+
+# 必要なツールをインストール
+RUN apk --no-cache add git ca-certificates tzdata make
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# go.modとgo.sumをコピーして依存関係をダウンロード
+COPY go.mod go.sum ./
+RUN go mod download
+
+# ソースコードをコピー
+COPY . .
+
+# Linuxアーキテクチャ用にバイナリをビルド
+RUN CGO_ENABLED=0 GOOS=linux go build -o memo-app src/main.go
 
 # テスト/開発用ステージ（Goツールチェーン含む）
 FROM golang:1.24.5-alpine AS test
@@ -29,7 +48,7 @@ EXPOSE 8000
 # デフォルトコマンド（テスト用に無限ループ）
 CMD ["tail", "-f", "/dev/null"]
 
-# 本番実行環境（事前ビルドされたバイナリを使用）
+# 本番実行環境
 FROM alpine:3.19 AS production
 
 # セキュリティ更新とca-certificatesをインストール
@@ -41,8 +60,8 @@ WORKDIR /app
 # ログディレクトリを作成
 RUN mkdir -p /app/logs
 
-# ローカルでビルドされたバイナリをコピー
-COPY bin/memo-app ./memo-app
+# ビルドステージからバイナリをコピー
+COPY --from=builder /app/memo-app ./memo-app
 
 # バイナリが実行可能であることを確認
 RUN chmod +x ./memo-app

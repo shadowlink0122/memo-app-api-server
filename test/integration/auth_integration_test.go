@@ -43,6 +43,7 @@ func TestAuthenticationIntegration(t *testing.T) {
 	router := gin.New()
 	router.POST("/api/auth/register", authHandler.Register)
 	router.POST("/api/auth/login", authHandler.Login)
+	router.POST("/api/auth/logout", authHandler.Logout)
 	router.GET("/api/auth/github/url", authHandler.GetGitHubAuthURL)
 	router.POST("/api/auth/refresh", authHandler.RefreshToken)
 
@@ -199,6 +200,76 @@ func TestPasswordStrengthValidation(t *testing.T) {
 func TestJWTTokenValidation(t *testing.T) {
 	// 実際のJWTサービスをテスト
 	t.Skip("JWTサービスのテストは別ファイルで実施")
+}
+
+func TestLogoutIntegration(t *testing.T) {
+	// テスト環境のセットアップをスキップ（データベース接続が必要）
+	t.Skip("統合テストはデータベース接続が必要です")
+
+	cfg := setupTestConfig()
+	db := setupTestDatabase(t, cfg)
+	defer db.Close()
+
+	// リポジトリとサービスのセットアップ
+	userRepo := repository.NewUserRepository(db)
+	jwtService := service.NewJWTService(cfg)
+	authService := service.NewAuthService(userRepo, jwtService, cfg)
+	authHandler := handlers.NewAuthHandler(authService)
+
+	// Ginルーターのセットアップ
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/auth/register", authHandler.Register)
+	router.POST("/api/auth/login", authHandler.Login)
+	router.POST("/api/auth/logout", authHandler.Logout)
+
+	t.Run("ログアウト機能のテスト", func(t *testing.T) {
+		// 1. ユーザー登録
+		registerReq := map[string]string{
+			"username": "logouttest",
+			"email":    "logout@test.com",
+			"password": "SecurePass123!",
+		}
+		registerBody, _ := json.Marshal(registerReq)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(registerBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Real-IP", "192.168.1.100")
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusCreated, w.Code)
+
+		var registerResp struct {
+			Data *models.AuthResponse `json:"data"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &registerResp)
+		require.NoError(t, err)
+
+		accessToken := registerResp.Data.AccessToken
+
+		// 2. ログアウト実行
+		logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+		logoutReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+
+		logoutW := httptest.NewRecorder()
+		router.ServeHTTP(logoutW, logoutReq)
+
+		require.Equal(t, http.StatusOK, logoutW.Code)
+
+		var logoutResp struct {
+			Message string `json:"message"`
+		}
+		err = json.Unmarshal(logoutW.Body.Bytes(), &logoutResp)
+		require.NoError(t, err)
+		assert.Equal(t, "Successfully logged out", logoutResp.Message)
+
+		// 3. ログアウト後のトークン検証（無効になっているべき）
+		// JWTサービスで直接トークンの無効化状態をチェック
+		isInvalidated := jwtService.IsTokenInvalidated(accessToken)
+		assert.True(t, isInvalidated, "ログアウト後、トークンは無効化されているべき")
+	})
 }
 
 // テスト用のヘルパー関数

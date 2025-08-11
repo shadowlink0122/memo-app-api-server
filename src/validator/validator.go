@@ -40,8 +40,8 @@ func NewCustomValidator() *CustomValidator {
 	v := validator.New()
 	cv := &CustomValidator{
 		validator:           v,
-		categoryPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`),   // 英数字、ひらがな、カタカナ、漢字
-		tagPattern:          regexp.MustCompile(`^[a-zA-Z0-9_\-\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}\s]+$`), // タグは空白も許可
+		categoryPattern:     regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // HTMLタグ記号<>を除外
+		tagPattern:          regexp.MustCompile(`^[a-zA-Z0-9_\-!@#$%^&*()+=\[\]{};':",.?/~` + "`" + `|\s\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{4E00}-\x{9FAF}]+$`), // HTMLタグ記号<>を除外
 		sqlInjectionPattern: regexp.MustCompile(`(?i)(\bunion\s+select\b|\bselect\s+.*\bfrom\b|\binsert\s+into\b|\bupdate\s+.*\bset\b|\bdelete\s+from\b|\bdrop\s+table\b|\bcreate\s+table\b|\balter\s+table\b|\bexec\s*\(|<script|</script>|onload\s*=|onerror\s*=|--|/\*|\*/|\|\||(\bor\b|\band\b)\s*(1\s*=\s*1|true|\d+\s*=\s*\d+))`),
 	}
 
@@ -80,16 +80,37 @@ func (cv *CustomValidator) Validate(s interface{}) error {
 	return nil
 }
 
-// SanitizeInput sanitizes input data to prevent XSS and other attacks
+// SanitizeInput sanitizes input data to prevent XSS and other attacks while preserving content structure
 func (cv *CustomValidator) SanitizeInput(input string) string {
-	// HTMLエスケープ
-	sanitized := html.EscapeString(input)
+	// 前後の空白を削除
+	input = strings.TrimSpace(input)
 
-	// 前後の空白を除去
+	// 連続する空白を単一のスペースに置換（タブや改行も含む）
+	spacePattern := regexp.MustCompile(`[ \t]+`)
+	input = spacePattern.ReplaceAllString(input, " ")
+
+	// HTMLエスケープ
+	input = html.EscapeString(input)
+
+	return input
+}
+
+// SanitizeContent specifically sanitizes memo content while preserving formatting
+func (cv *CustomValidator) SanitizeContent(content string) string {
+	// メモの内容は改行やインデントを保持
+	sanitized := content
+
+	// SQLインジェクション攻撃のパターンをチェック
+	if cv.sqlInjectionPattern.MatchString(sanitized) {
+		// 危険なパターンが検出された場合のみHTMLエスケープ
+		sanitized = html.EscapeString(sanitized)
+	}
+
+	// 前後の空白のみ除去（内部の改行やインデントは保持）
 	sanitized = strings.TrimSpace(sanitized)
 
-	// 連続する空白を単一の空白に変換
-	sanitized = regexp.MustCompile(`\s+`).ReplaceAllString(sanitized, " ")
+	// 過度な連続改行のみ制限（最大3行）
+	sanitized = regexp.MustCompile(`\n{4,}`).ReplaceAllString(sanitized, "\n\n\n")
 
 	return sanitized
 }
@@ -104,15 +125,20 @@ func (cv *CustomValidator) SanitizeTags(tags []string) []string {
 	result := make([]string, 0, len(tags))
 
 	for _, tag := range tags {
-		// サニタイズ
-		sanitized := cv.SanitizeInput(tag)
+		// 前後の空白を削除
+		sanitized := strings.TrimSpace(tag)
 
 		// 長さチェック
 		if utf8.RuneCountInString(sanitized) > 30 {
 			continue // 長すぎるタグは除外
 		}
 
-		// 重複チェック
+		// HTMLタグ文字を含む場合は除外
+		if strings.Contains(sanitized, "<") || strings.Contains(sanitized, ">") {
+			continue
+		}
+
+		// パターンチェックと重複チェック
 		if sanitized != "" && !seen[sanitized] && cv.tagPattern.MatchString(sanitized) {
 			seen[sanitized] = true
 			result = append(result, sanitized)
@@ -132,9 +158,14 @@ func (cv *CustomValidator) validateSafeText(fl validator.FieldLevel) bool {
 		return false
 	}
 
-	// 基本的な文字チェック（制御文字の排除）
+	// 基本的な制御文字チェック（通常の文字、改行、タブを許可）
 	for _, r := range value {
-		if r < 32 && r != 9 && r != 10 && r != 13 { // タブ、改行、復帰以外の制御文字を拒否
+		// 危険な制御文字のみ拒否（改行、タブ、復帰は許可）
+		if r < 32 && r != 9 && r != 10 && r != 13 {
+			return false
+		}
+		// 削除文字 (DEL) も拒否
+		if r == 127 {
 			return false
 		}
 	}

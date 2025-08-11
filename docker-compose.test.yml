@@ -41,10 +41,14 @@ services:
       - POSTGRES_DB=memo_db_test
       - POSTGRES_USER=memo_user
       - POSTGRES_PASSWORD=memo_password
+    ports:
+      - "5433:5432"  # ホストの5433ポートをコンテナの5432ポートにマッピング
     volumes:
       - ./migrations/000_create_test_db.sql:/docker-entrypoint-initdb.d/000_create_test_db.sql:ro
       - ./migrations/001_initial_schema.up.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
       - ./migrations/002_sample_data.up.sql:/docker-entrypoint-initdb.d/002_sample_data.sql:ro
+      - ./migrations/003_users_auth.up.sql:/docker-entrypoint-initdb.d/003_users_auth.sql:ro
+      - ./migrations/004_extend_users_auth.up.sql:/docker-entrypoint-initdb.d/004_extend_users_auth.sql:ro
     networks:
       - memo-test-network
     healthcheck:

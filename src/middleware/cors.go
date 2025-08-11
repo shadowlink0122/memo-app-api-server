@@ -22,7 +22,8 @@ func CORSMiddleware() gin.HandlerFunc {
 		// セキュリティのため、本番環境では適切なオリジンを設定すること
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+		c.Header("Access-Control-Expose-Headers", "Content-Type, Authorization, X-Total-Count, X-Page, X-Limit, X-Total-Pages")
 		c.Header("Access-Control-Max-Age", "86400") // 24時間
 
 		if c.Request.Method == "OPTIONS" {

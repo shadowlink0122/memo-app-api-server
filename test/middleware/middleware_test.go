@@ -54,6 +54,16 @@ func (m *MockJWTService) ValidateRefreshToken(tokenString string) (*service.JWTC
 	return nil, assert.AnError
 }
 
+func (m *MockJWTService) InvalidateToken(tokenString string) error {
+	// モックでは常に成功として扱う
+	return nil
+}
+
+func (m *MockJWTService) IsTokenInvalidated(tokenString string) bool {
+	// テスト用の無効化されたトークン
+	return tokenString == "invalidated-token"
+}
+
 // MockUserRepository は認証ミドルウェアテスト用のモック
 type MockUserRepository struct{}
 
@@ -294,6 +304,12 @@ func TestAuthMiddleware(t *testing.T) {
 			authHeader:     "Bearer invalid-token",
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody:   "Invalid token",
+		},
+		{
+			name:           "無効化されたtoken",
+			authHeader:     "Bearer invalidated-token",
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody:   "Token has been invalidated",
 		},
 		{
 			name:           "有効なtoken",
